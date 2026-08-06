@@ -1,0 +1,1404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Token Ledger — Know exactly what your AI usage costs | Nymrel Tools</title>
+<meta name="description" content="Paste your Anthropic or OpenAI usage CSV and get an instant spend dashboard — by day, by model, with cost estimates. Everything runs in your browser; nothing leaves your device.">
+<link rel="canonical" href="https://nymrel.com/tools/token-spend-dashboard">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Nymrel Tools">
+<meta property="og:title" content="Token Ledger — Know exactly what your AI usage costs">
+<meta property="og:description" content="Paste your AI provider's usage CSV and get an instant spend dashboard — by day, by model, with editable cost estimates. Runs entirely in your browser.">
+<meta property="og:url" content="https://nymrel.com/tools/token-spend-dashboard">
+<meta property="og:image" content="https://nymrel.com/assets/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Token Ledger — Know exactly what your AI usage costs">
+<meta name="twitter:description" content="Paste an AI usage CSV, get a spend dashboard by day and by model. Free, no sign-up, runs in your browser.">
+<meta name="twitter:image" content="https://nymrel.com/assets/og.png">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="preload" href="/assets/fonts/instrumentserif-normal-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/instrumentsans-normal-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/fonts/fonts.css">
+<link rel="stylesheet" href="/assets/site.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "name": "Token Ledger",
+      "url": "https://nymrel.com/tools/token-spend-dashboard",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Web browser",
+      "description": "Paste an AI-provider usage CSV (Anthropic or OpenAI) and get an instant spend dashboard — totals, spend by day, and a per-model breakdown, with editable cost estimates. Everything runs in your browser.",
+      "publisher": {
+        "@id": "https://nymrel.com/#organization"
+      },
+      "offers": [
+        {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD",
+          "name": "Free"
+        },
+        {
+          "@type": "Offer",
+          "price": "49",
+          "priceCurrency": "USD",
+          "name": "Pro"
+        }
+      ],
+      "creator": {
+        "@id": "https://nymrel.com/#organization"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Tools",
+          "item": "https://nymrel.com/tools"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Token Ledger",
+          "item": "https://nymrel.com/tools/token-spend-dashboard"
+        }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How do I get a usage CSV from my AI provider?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "In the Anthropic Console go to Usage and export CSV; in the OpenAI Platform go to Usage and export your activity. Then paste the file here or choose it from your computer."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Do I need an account or an API key?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. Token Ledger reads a file you already have. There is no login, no API key, and nothing is uploaded to a server."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What if my export has no cost column?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Token Ledger estimates spend from token counts using an editable price table. The prices are clearly labeled estimates — you can correct any model's input and output rate or add a model."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is my data safe?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. Everything is processed in your browser — nothing you paste or load is ever sent to a server. Your pasted data disappears when you close the tab; only your price-table edits and preferences are saved locally in this browser, and 'Reset to defaults' clears them."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Which providers and formats work?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Any CSV with a date, a model, and token or cost columns. Token Ledger auto-detects common Anthropic and OpenAI export headers and lets you remap any column by hand."
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
+<style>
+  /* Token Ledger — page-specific layout, built on site.css tokens */
+  .tool-intro { color: var(--ink-dim); font-size: 0.92rem; margin: 0 0 1.2rem; }
+  .io-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 0.7rem; }
+  .filechip { font-family: var(--font-mono); font-size: 0.74rem; color: var(--ink-faint); }
+
+  .mapbar { margin-top: 1.3rem; padding-top: 1.2rem; border-top: 1px solid var(--line); }
+  .map-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+  .map-grid label { display: block; margin: 0; }
+  .map-grid .lab { font-size: 0.62rem; margin-bottom: 5px; }
+  .map-grid select { padding: 8px 30px 8px 10px; font-size: 0.78rem; }
+  .status { font-family: var(--font-mono); font-size: 0.74rem; color: var(--ink-faint); margin-top: 12px; line-height: 1.7; }
+  .status b { color: var(--ink-dim); font-weight: 500; }
+  .warn { border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); background: rgba(224, 164, 88, 0.07); color: var(--ink-dim); font-size: 0.8rem; padding: 10px 12px; border-radius: 8px; margin-top: 12px; }
+  .warn b { color: var(--warn); }
+  .warn code { color: var(--brass-bright); }
+
+  .price-editor { margin-top: 1.3rem; padding-top: 1.2rem; border-top: 1px solid var(--line); }
+  .price-editor > summary { cursor: pointer; list-style: none; font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-dim); padding: 2px 0; display: flex; justify-content: space-between; align-items: center; }
+  .price-editor > summary::-webkit-details-marker { display: none; }
+  .price-editor > summary::after { content: "+"; color: var(--brass); font-size: 1rem; }
+  .price-editor[open] > summary::after { content: "\2212"; }
+  .price-editor .note { font-size: 0.75rem; color: var(--ink-faint); margin: 10px 0 12px; }
+  .price-tbl { width: 100%; border-collapse: collapse; }
+  .price-tbl th { font-family: var(--font-mono); font-size: 0.58rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); text-align: left; padding: 3px 6px; font-weight: 500; }
+  .price-tbl th.rt, .price-tbl td.rt { text-align: right; }
+  .price-tbl td { padding: 3px 5px; }
+  .price-tbl input { padding: 6px 8px; font-size: 0.76rem; }
+  .price-tbl .pnum { width: 74px; text-align: right; }
+  .price-tbl .prm { background: transparent; border: 0; color: var(--ink-faint); cursor: pointer; font-family: var(--font-mono); font-size: 1rem; line-height: 1; padding: 2px 4px; }
+  .price-tbl .prm:hover { color: var(--bad); }
+  .price-actions { display: flex; gap: 14px; margin-top: 12px; }
+  .linkbtn { background: transparent; border: 0; color: var(--brass-bright); cursor: pointer; font-family: var(--font-mono); font-size: 0.74rem; letter-spacing: 0.04em; padding: 0; }
+  .linkbtn:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+  .form-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 1.3rem; padding-top: 1.2rem; border-top: 1px solid var(--line); }
+
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 1.3rem; }
+  .stat-grid .stat .val { font-size: 1.7rem; }
+  .stat-grid .stat .val .u { font-size: 0.8rem; color: var(--ink-faint); font-family: var(--font-mono); }
+  .stat-note { font-size: 0.6rem; color: var(--ink-faint); font-family: var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stat-note.est { color: var(--brass); }
+
+  .mlist { padding: 0 1.3rem 1.4rem; }
+  .block-h { font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); margin: 0 0 1rem; font-weight: 500; }
+  .mbar { margin-bottom: 0.95rem; }
+  .mbar:last-child { margin-bottom: 0; }
+  .mbar-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 5px; }
+  .mname { font-family: var(--font-mono); font-size: 0.8rem; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mval { font-family: var(--font-mono); font-size: 0.75rem; color: var(--ink-dim); white-space: nowrap; }
+  .mval .pct { color: var(--ink-faint); }
+
+  .empty { padding: 1.7rem 1.5rem 1.9rem; }
+  .empty .steps { margin: 0 0 1.2rem; padding-left: 1.2rem; color: var(--ink-dim); font-size: 0.94rem; }
+  .empty .steps li { margin-bottom: 0.7rem; }
+  .empty .steps b { color: var(--ink); }
+  .empty .privacy { font-family: var(--font-mono); font-size: 0.74rem; color: var(--ink-faint); border-top: 1px solid var(--line); padding-top: 1.1rem; line-height: 1.7; }
+
+  .chart-panel { padding: 1.6rem 1.6rem 1.4rem; }
+  .daychart { width: 100%; height: auto; display: block; }
+  .daychart text { font-family: var(--font-mono); }
+  .daychart rect.bar { transition: fill 0.15s, opacity 0.15s; }
+  .daychart rect.bar:hover { fill: var(--brass-bright); }
+  .day-note { font-family: var(--font-mono); font-size: 0.78rem; color: var(--ink-faint); padding: 1.2rem 0; }
+  .tbl-wrap { overflow-x: auto; }
+  table.data tfoot td { border-top: 1px solid var(--line-strong); border-bottom: 0; color: var(--ink); font-weight: 500; }
+  table.data td.rt, table.data th.rt { text-align: right; }
+
+  /* --- elevation additions --- */
+  /* drop-to-parse: the whole controls panel is a drop target */
+  .controls { position: relative; transition: border-color 0.15s, box-shadow 0.15s; }
+  .controls.drop-hot { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+  .drop-veil { position: absolute; inset: 0; z-index: 6; display: none; align-items: center; justify-content: center; border-radius: var(--r-lg); background: color-mix(in srgb, var(--bg-deep) 82%, transparent); pointer-events: none; }
+  .controls.drop-hot .drop-veil { display: flex; }
+  .drop-veil span { font-family: var(--font-mono); font-size: 0.82rem; letter-spacing: 0.08em; color: var(--accent); border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent); border-radius: 8px; padding: 12px 18px; }
+
+  /* paste-anywhere confirm strip (non-blocking) */
+  .paste-offer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 0.9rem; padding: 10px 12px; background: var(--accent-dim); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); border-radius: 8px; font-size: 0.84rem; color: var(--ink-dim); }
+  .paste-offer .po-msg { flex: 1; min-width: 12ch; }
+
+  /* column-mapping confidence note */
+  .map-note { font-family: var(--font-mono); font-size: 0.72rem; color: var(--ink-dim); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .map-note::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+
+  /* estimated-vs-actual mode chip near the dashboard header */
+  .mode-chip { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.02em; padding: 5px 12px; border-radius: 100px; border: 1px solid var(--line-strong); color: var(--ink-dim); }
+  .mode-chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+  .mode-chip.est { border-color: color-mix(in srgb, var(--warn) 45%, transparent); color: var(--warn); }
+  .mode-chip.est::before { background: var(--warn); }
+  .mode-chip.actual { border-color: color-mix(in srgb, var(--ok) 55%, transparent); color: var(--ok); }
+  .mode-chip.actual::before { background: var(--ok); }
+  #dash .mode-chip { margin: 1.2rem 1.3rem 0; }
+
+  /* export control in the bench-head */
+  .bench-actions { display: flex; align-items: center; gap: 12px; }
+  .bench-actions .btn { text-transform: none; letter-spacing: 0.03em; }
+
+  /* skeleton stat tiles paint during a big parse */
+  .stat-grid .sk-tile { padding: 1.1rem 1.3rem; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); }
+  .stat-grid .sk-tile .skeleton + .skeleton { margin-top: 9px; }
+
+  /* keep the mobile action bar hidden until data exists (beats UA [hidden] on mobile) */
+  .action-bar[hidden] { display: none !important; }
+</style>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"Organization","@id":"https://nymrel.com/#organization","email":"contact@nymrel.com","legalName":"JalenBuilds LLC","name":"Nymrel","url":"https://nymrel.com"}
+</script>
+  <script defer src="/_vercel/insights/script.js"></script>
+</head>
+<body data-tool="tokens" data-pro-product="tokens-pro" data-pro-module="tokens-pro">
+
+<header class="site">
+  <div class="wrap">
+    <a class="brand" href="/"><span class="mark">◆</span> nymrel<span class="sub">/ tool works</span></a>
+    <nav class="primary" aria-label="Primary">
+      <a href="/tools/ai-visibility-scorecard/">Scorecard</a>
+      <a href="/tools/llms-txt-generator/">llms.txt</a>
+      <a href="/tools/json-ld-generator/">JSON-LD</a>
+      <a href="/tools/qr-utm-generator/">QR + UTM</a>
+      <a href="/tools/token-spend-dashboard/" class="active">Token Ledger</a>
+      <a href="/tools/chatgpt-recommends/">ChatGPT Check</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <nav class="crumbs wrap" aria-label="Breadcrumb">
+    <a href="/">Tools</a> <span class="sep">/</span> Token Ledger
+  </nav>
+
+  <section class="hero" style="padding-top:3.5rem">
+    <div class="wrap">
+      <div class="hero-glyph">
+        <div class="tool-glyph" aria-hidden="true">
+          <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+            <line x1="8" y1="39" x2="40" y2="39"/>
+            <rect x="12" y="31" width="5" height="8" rx="0.5"/>
+            <rect x="21" y="25" width="5" height="14" rx="0.5"/>
+            <rect x="30" y="18" width="5" height="21" rx="0.5"/>
+            <circle cx="33" cy="11" r="3.5"/>
+          </svg>
+        </div>
+        <div class="kicker" style="margin-bottom:0">Token Ledger · runs in your browser</div>
+      </div>
+      <h1 style="max-width:12em">Know exactly what your AI usage costs.</h1>
+      <p class="lede">Paste the usage export from your AI provider and get an instant spend dashboard — totals, spend by day, and a per-model breakdown. No account, no upload. Your data never leaves this page.</p>
+    </div>
+  </section>
+
+  <!-- ============ THE TOOL ============ -->
+  <section class="wrap">
+    <div class="workbench">
+
+      <!-- LEFT: controls -->
+      <div class="controls">
+        <div class="drop-veil" aria-hidden="true"><span>Drop your .csv to read it</span></div>
+
+        <div class="hint-once" id="hintOnce" hidden>
+          <span>Export your usage CSV from your provider's console, paste or drop it here — <b>nothing uploads.</b></span>
+          <button type="button" class="hx" id="hintClose" aria-label="Dismiss hint">×</button>
+        </div>
+
+        <p class="tool-intro">Drop in a CSV from the Anthropic Console (Usage) or the OpenAI Platform (Usage). Token Ledger reads the columns automatically. No cost column? It estimates from token counts.</p>
+
+        <label class="field" for="csvInput">
+          <span class="lab">Paste your usage export <span class="code-chip">date, model, tokens</span></span>
+          <textarea id="csvInput" spellcheck="false" placeholder="date,model,input_tokens,output_tokens,cost_usd&#10;2026-06-01,claude-sonnet-4,812340,190220,3.29&#10;..." style="min-height:150px"></textarea>
+        </label>
+        <div class="field-msg" id="csvMsg" hidden></div>
+
+        <div class="io-row">
+          <label class="btn btn-sm" for="csvFile">Choose .csv file</label>
+          <input id="csvFile" type="file" accept=".csv,text/csv" style="display:none">
+          <button type="button" class="try-btn" id="sampleBtn">Try an example</button>
+          <span class="filechip" id="fileChip"></span>
+        </div>
+
+        <div class="paste-offer" id="pasteOffer" hidden>
+          <span class="po-msg">That looks like a CSV. Load it into the ledger?</span>
+          <button type="button" class="linkbtn" id="pasteLoad">Load it</button>
+          <button type="button" class="linkbtn" id="pasteDismiss">Dismiss</button>
+        </div>
+
+        <!-- column mapping (hidden until data) -->
+        <div class="mapbar" id="mapbar" hidden>
+          <div class="map-note" id="mapNote" hidden></div>
+          <span class="lab" style="margin-bottom:9px">Column mapping — auto-detected, correct if needed</span>
+          <div class="map-grid" id="mapGrid"></div>
+          <div class="status" id="status"></div>
+          <div class="warn" id="warnBox" hidden></div>
+        </div>
+
+        <!-- editable price table -->
+        <details class="price-editor" id="priceEditor">
+          <summary>Model pricing (editable estimates)</summary>
+          <p class="note">Used only when your CSV has no cost column — spend is estimated from tokens. Rates are per <b>million</b> tokens in USD. <b>Editable estimates — check your provider's pricing page.</b> Matched by substring of the model name.</p>
+          <table class="price-tbl">
+            <thead>
+              <tr><th>Model contains</th><th class="rt">Input / M</th><th class="rt">Output / M</th><th></th></tr>
+            </thead>
+            <tbody id="priceRows"></tbody>
+          </table>
+          <div class="price-actions">
+            <button type="button" class="linkbtn" id="addPriceBtn">+ Add model</button>
+            <button type="button" class="linkbtn" id="resetPriceBtn">Reset to defaults</button>
+          </div>
+        </details>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-sm" id="exportBtn" disabled>Export summary CSV</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="clearBtn">Clear</button>
+        </div>
+      </div>
+
+      <!-- RIGHT: output -->
+      <div class="output">
+        <div class="bench-head">
+          <span><span class="dot"></span>Ledger</span>
+          <span class="bench-actions">
+            <span id="stateTag"></span>
+            <button type="button" class="btn btn-ghost btn-sm" id="exportTop" hidden aria-label="Export summary CSV">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8m0 0L5 7m3 3l3-3M3 13h10"/></svg>Export
+            </button>
+          </span>
+        </div>
+
+        <div id="emptyState" class="empty-state">
+          <div class="tool-glyph" aria-hidden="true">
+            <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+              <line x1="8" y1="39" x2="40" y2="39"/>
+              <rect x="12" y="31" width="5" height="8" rx="0.5"/>
+              <rect x="21" y="25" width="5" height="14" rx="0.5"/>
+              <rect x="30" y="18" width="5" height="21" rx="0.5"/>
+              <circle cx="33" cy="11" r="3.5"/>
+            </svg>
+          </div>
+          <p class="es-line">No numbers yet — the ledger's a blank page.</p>
+          <p class="es-hint">Paste or drop a usage CSV and you'll get spend by day, by model, and the totals that matter. Nothing uploads; it all stays in this tab.</p>
+          <button type="button" class="try-btn" id="sampleBtn2">Try an example</button>
+        </div>
+
+        <div id="dash" hidden>
+          <div id="modeChip" class="mode-chip" hidden></div>
+          <div class="stat-grid" id="statGrid"></div>
+          <div class="mlist">
+            <h3 class="block-h">Spend by model</h3>
+            <div id="modelBars"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ FULL-WIDTH DASHBOARD ============ -->
+  <section class="section wrap" id="chartsSection" hidden>
+    <div class="kicker">Dashboard</div>
+    <h2 style="margin-bottom:1.6rem">Spend, broken down</h2>
+    <div class="panel chart-panel" style="margin-bottom:1.4rem">
+      <h3 class="block-h">Spend by day</h3>
+      <div id="dayChart"></div>
+    </div>
+    <div class="panel chart-panel">
+      <h3 class="block-h">By model — full breakdown</h3>
+      <div class="tbl-wrap">
+        <table class="data" id="dataTable"></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HOW IT WORKS ============ -->
+  <section class="section wrap">
+    <div class="kicker">How it works</div>
+    <h2 style="margin-bottom:2rem">Three steps, no setup</h2>
+    <div class="grid-3">
+      <div class="panel">
+        <div class="mono" style="color:var(--brass);font-size:0.8rem;letter-spacing:0.1em">01</div>
+        <h3 style="margin-top:0.6rem">Export</h3>
+        <p style="color:var(--ink-dim);font-size:0.94rem;margin:0">Grab the usage CSV your provider already gives you. Anthropic and OpenAI both let you export it in one click.</p>
+      </div>
+      <div class="panel">
+        <div class="mono" style="color:var(--brass);font-size:0.8rem;letter-spacing:0.1em">02</div>
+        <h3 style="margin-top:0.6rem">Paste</h3>
+        <p style="color:var(--ink-dim);font-size:0.94rem;margin:0">Columns are detected automatically — date, model, tokens, cost. Wrong guess? Fix it with a dropdown. No cost column gets estimated.</p>
+      </div>
+      <div class="panel">
+        <div class="mono" style="color:var(--brass);font-size:0.8rem;letter-spacing:0.1em">03</div>
+        <h3 style="margin-top:0.6rem">Read</h3>
+        <p style="color:var(--ink-dim);font-size:0.94rem;margin:0">Totals, a spend-by-day chart, and a per-model table — instantly. Export a clean summary when you need to share it.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PRICING ============ -->
+  <section data-pro-strip class="section wrap">
+    <div class="kicker">Pricing</div>
+    <h2 style="margin-bottom:0.4rem">Free dashboard. Pro when you run the numbers for real.</h2>
+    <p class="lede" style="margin-bottom:2rem">The dashboard is free and complete. Pro is for people juggling multiple providers, clients, and budgets.</p>
+    <div class="pricing">
+      <div class="price-card">
+        <div class="tier">Free</div>
+        <div class="amount">$0</div>
+        <ul>
+          <li>Paste or upload any usage CSV</li>
+          <li>Automatic column detection + manual remap</li>
+          <li>Spend by day and by model</li>
+          <li>Totals, top model, days covered</li>
+          <li>Cost estimates from an editable price table</li>
+          <li>Export a per-model summary CSV</li>
+          <li>Runs entirely in your browser</li>
+        </ul>
+        <button class="btn" id="freeBtn">Use it now</button>
+      </div>
+      <div class="price-card featured">
+        <div class="tier">Pro</div>
+        <div class="amount">$49 <small>one-time</small></div>
+        <ul>
+          <li>Offline single-file version — one .html file, works with no internet</li>
+          <li>Merge multiple files — combine providers and months</li>
+          <li>Project &amp; client tags with per-tag rollups</li>
+          <li>Monthly budget line on the chart + overspend flag</li>
+          <li>Formatted monthly report export</li>
+          <li>Unlocks on this page and downloads right after checkout</li>
+        </ul>
+        <button class="btn btn-primary" data-buy="tokens-pro">Get Pro — $49</button>
+        <p class="help" style="color:var(--ink-faint);font-size:0.85rem;margin:0.9rem 0 0">Upload or paste your usage CSV above first — Pro parses and unlocks your analysis right in your browser.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FAQ ============ -->
+  <section data-pro-strip class="section wrap">
+    <div class="kicker">Questions, answered plainly</div>
+    <h2 style="margin-bottom:1.5rem">Before you ask</h2>
+    <div class="faq">
+      <details>
+        <summary>How do I get a usage CSV from my AI provider?</summary>
+        <p class="a">In the Anthropic Console, open <strong>Usage</strong> and export CSV. In the OpenAI Platform, open <strong>Usage</strong> and export your activity. Then paste the file here or choose it from your computer.</p>
+      </details>
+      <details>
+        <summary>Do I need an account or an API key?</summary>
+        <p class="a">No. Token Ledger reads a file you already have. There's no login, no API key, and nothing is uploaded to a server.</p>
+      </details>
+      <details>
+        <summary>What if my export has no cost column?</summary>
+        <p class="a">It estimates spend from token counts using an editable price table. The rates are clearly labeled estimates — you can correct any model's input and output price, or add a model it doesn't know. Your edits are saved in this browser.</p>
+      </details>
+      <details>
+        <summary>Is my data safe?</summary>
+        <p class="a">Yes. Everything is processed in your browser — nothing you paste or load is ever sent to a server. Your pasted data disappears when you close the tab; only your price-table edits and preferences are saved locally in this browser, and “Reset to defaults” clears them.</p>
+      </details>
+      <details>
+        <summary>Which providers and formats work?</summary>
+        <p class="a">Any CSV with a date, a model, and token or cost columns. Token Ledger auto-detects common Anthropic and OpenAI export headers (like <code>input_tokens</code>, <code>completion_tokens</code>, <code>cost</code>) and lets you remap any column by hand.</p>
+      </details>
+    </div>
+  </section>
+
+  <!-- mobile one-hand action bar (shown only once data is loaded) -->
+  <div class="action-bar" id="actionBar" hidden>
+    <button type="button" class="btn btn-primary" id="exportBtnMobile">Export summary CSV</button>
+    <button type="button" class="btn" id="clearBtnMobile">Clear</button>
+  </div>
+
+</main>
+
+<footer class="site">
+  <div class="wrap cols">
+    <div>
+      <p class="fh">Nymrel Tools</p>
+      <p style="max-width:26em">Small, sharp tools from a working studio. Everything runs in your browser; nothing you paste leaves your device.</p>
+      <p class="mono" style="font-size:0.78rem">© <span data-year>2026</span> JalenBuilds LLC</p>
+      <p class="mono" style="font-size:0.78rem"><a href="https://nymrel.com?utm_source=jalenbuilds-tools&amp;utm_medium=footer-credit&amp;utm_campaign=built-by-nymrel" rel="author">Built by Nymrel</a></p>
+    </div>
+    <div>
+      <p class="fh">Catalog</p>
+      <ul>
+        <li><a href="/tools/ai-visibility-scorecard/">AI Visibility Scorecard</a></li>
+        <li><a href="/tools/llms-txt-generator/">llms.txt Generator</a></li>
+        <li><a href="/tools/json-ld-generator/">JSON-LD Studio</a></li>
+        <li><a href="/tools/qr-utm-generator/">QR + UTM Studio</a></li>
+        <li><a href="/tools/token-spend-dashboard/">Token Ledger</a></li>
+      </ul>
+    </div>
+    <div>
+      <p class="fh">Studio</p>
+      <ul>
+        <li><a href="mailto:contact@nymrel.com">contact@nymrel.com</a></li>
+        <li><a href="/llms.txt">llms.txt</a></li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
+<script src="/assets/checkout-config.js"></script>
+<script src="/assets/site.js"></script>
+<script>
+/* ============================================================
+   Token Ledger — client-side CSV spend dashboard.
+   Vanilla JS, no libraries, no network. Runs entirely in-browser.
+   ============================================================ */
+(function () {
+  "use strict";
+
+  var MAX_ROWS = 100000; // big-data safety cap on data rows
+  var PRICE_KEY = "jbt.tokens.prices";
+  var HINT_KEY = "jbt.tokens.hinted";
+  var BIG_TEXT = 250000; // chars: above this, show a skeleton and parse off the paint frame
+
+  var DEFAULT_PRICES = [
+    { match: "opus",      in: 15,   out: 75 },
+    { match: "sonnet",    in: 3,    out: 15 },
+    { match: "haiku",     in: 1,    out: 5 },
+    { match: "gpt-4o",    in: 2.5,  out: 10 },
+    { match: "gpt-5",     in: 1.25, out: 10 },
+    { match: "o1",        in: 2,    out: 8 },
+    { match: "o3",        in: 2,    out: 8 },
+    { match: "o4",        in: 2,    out: 8 },
+    { match: "embedding", in: 0.02, out: 0 }
+  ];
+
+  var state = {
+    rawText: "",
+    headers: [],
+    rawRows: [],
+    truncated: false,
+    map: { date: -1, model: -1, in: -1, out: -1, cost: -1 },
+    isSample: false,
+    prices: loadPrices(),
+    agg: null
+  };
+
+  /* ---------- element refs ---------- */
+  var $ = function (id) { return document.getElementById(id); };
+  var csvInput = $("csvInput"), csvFile = $("csvFile"), fileChip = $("fileChip");
+  var sampleBtn = $("sampleBtn"), clearBtn = $("clearBtn"), exportBtn = $("exportBtn"), freeBtn = $("freeBtn");
+  var mapbar = $("mapbar"), mapGrid = $("mapGrid"), statusEl = $("status"), warnBox = $("warnBox");
+  var emptyState = $("emptyState"), dash = $("dash"), statGrid = $("statGrid"), modelBars = $("modelBars");
+  var chartsSection = $("chartsSection"), dayChartEl = $("dayChart"), dataTable = $("dataTable");
+  var priceEditor = $("priceEditor"), priceRows = $("priceRows"), addPriceBtn = $("addPriceBtn"), resetPriceBtn = $("resetPriceBtn");
+  var stateTag = $("stateTag");
+  var controlsEl = document.querySelector(".controls");
+  var csvMsg = $("csvMsg"), mapNote = $("mapNote"), modeChip = $("modeChip"), exportTop = $("exportTop");
+  var sampleBtn2 = $("sampleBtn2"), hintOnce = $("hintOnce"), hintClose = $("hintClose");
+  var actionBar = $("actionBar"), exportBtnMobile = $("exportBtnMobile"), clearBtnMobile = $("clearBtnMobile");
+  var pasteOffer = $("pasteOffer"), pasteLoad = $("pasteLoad"), pasteDismiss = $("pasteDismiss");
+  var pendingPaste = "";
+
+  /* ---------- helpers ---------- */
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function addCommas(s) {
+    s = String(s);
+    var parts = s.split(".");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return parts.join(".");
+  }
+  function fmtUSD(n) {
+    if (!isFinite(n)) n = 0;
+    return "$" + addCommas(n.toFixed(2));
+  }
+  function fmtInt(n) { return addCommas(Math.round(n || 0)); }
+  function fmtCompact(n) {
+    n = n || 0;
+    if (n >= 1e9) return (n / 1e9).toFixed(1).replace(/\.0$/, "") + "B";
+    if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
+    if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, "") + "K";
+    return String(Math.round(n));
+  }
+  function moneyAxis(v) {
+    if (v >= 1e6) return "$" + (v / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
+    if (v >= 1e3) return "$" + (v / 1e3).toFixed(1).replace(/\.0$/, "") + "k";
+    if (v >= 10) return "$" + Math.round(v);
+    return "$" + v.toFixed(2);
+  }
+  function num(s) {
+    if (s == null) return NaN;
+    var t = String(s).replace(/[$,\s]/g, "");
+    if (t === "") return NaN;
+    var v = parseFloat(t);
+    return isFinite(v) ? v : NaN;
+  }
+  function debounce(fn, ms) {
+    var t;
+    return function () {
+      clearTimeout(t);
+      t = setTimeout(fn, ms);
+    };
+  }
+
+  /* ---------- prices persistence ---------- */
+  function loadPrices() {
+    try {
+      var s = localStorage.getItem(PRICE_KEY);
+      if (s) {
+        var a = JSON.parse(s);
+        if (a && a.length) return a;
+      }
+    } catch (e) {}
+    return DEFAULT_PRICES.map(function (p) { return { match: p.match, in: p.in, out: p.out }; });
+  }
+  function savePrices() {
+    try { localStorage.setItem(PRICE_KEY, JSON.stringify(state.prices)); } catch (e) {}
+  }
+  function priceFor(model) {
+    var lower = String(model).toLowerCase();
+    for (var i = 0; i < state.prices.length; i++) {
+      var p = state.prices[i];
+      var m = String(p.match || "").toLowerCase().trim();
+      if (m && lower.indexOf(m) >= 0) return p;
+    }
+    return null;
+  }
+
+  /* ---------- CSV parser (RFC-4180-ish state machine) ---------- */
+  function parseCSV(text, maxDataRows) {
+    var rows = [], row = [], field = "", inQ = false;
+    var i = 0, n = text.length, truncated = false;
+    function pushField() { row.push(field); field = ""; }
+    function pushRow() {
+      var blank = (row.length === 1 && row[0].trim() === "");
+      if (!blank) rows.push(row);
+      row = [];
+    }
+    while (i < n) {
+      var c = text.charAt(i);
+      if (inQ) {
+        if (c === '"') {
+          if (text.charAt(i + 1) === '"') { field += '"'; i += 2; continue; }
+          inQ = false; i++; continue;
+        }
+        field += c; i++; continue;
+      } else {
+        if (c === '"') { inQ = true; i++; continue; }
+        if (c === ",") { pushField(); i++; continue; }
+        if (c === "\r") { i++; continue; }
+        if (c === "\n") {
+          pushField(); pushRow(); i++;
+          if (maxDataRows && rows.length > maxDataRows + 1) { truncated = true; break; }
+          continue;
+        }
+        field += c; i++; continue;
+      }
+    }
+    if (!truncated && (field !== "" || row.length > 0)) { pushField(); pushRow(); }
+    if (truncated) { rows = rows.slice(0, maxDataRows + 1); }
+    return { rows: rows, truncated: truncated };
+  }
+
+  /* ---------- column detection ---------- */
+  function detect(headers, keys, used, notContains) {
+    for (var k = 0; k < keys.length; k++) {
+      for (var h = 0; h < headers.length; h++) {
+        if (used.indexOf(h) >= 0) continue;
+        var hh = String(headers[h]).toLowerCase().trim();
+        if (notContains && hh.indexOf(notContains) >= 0) continue;
+        if (hh.indexOf(keys[k]) >= 0) return h;
+      }
+    }
+    return -1;
+  }
+  function detectAll(headers) {
+    var used = [], map = {};
+    map.date = detect(headers, ["usage_date", "start_time", "timestamp", "created", "date"], used);
+    if (map.date >= 0) used.push(map.date);
+    map.model = detect(headers, ["model_name", "model_version", "model"], used);
+    if (map.model >= 0) used.push(map.model);
+    map.in = detect(headers, ["input_tokens", "prompt_tokens", "n_context_tokens", "context_tokens", "input"], used);
+    if (map.in >= 0) used.push(map.in);
+    map.out = detect(headers, ["output_tokens", "completion_tokens", "n_generated_tokens", "generated_tokens", "output"], used);
+    if (map.out >= 0) used.push(map.out);
+    map.cost = detect(headers, ["cost", "spend", "amount", "price", "total"], used, "token");
+    if (map.cost >= 0) used.push(map.cost);
+    return map;
+  }
+
+  /* ---------- day-key parsing ---------- */
+  function dayKey(v) {
+    if (v == null) return null;
+    var s = String(v).trim();
+    if (!s) return null;
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return m[1] + "-" + m[2] + "-" + m[3];
+    m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/); // M/D/YYYY
+    if (m) {
+      var mo = ("0" + m[1]).slice(-2), da = ("0" + m[2]).slice(-2);
+      return m[3] + "-" + mo + "-" + da;
+    }
+    var d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+    }
+    return null;
+  }
+
+  /* ---------- aggregation ---------- */
+  function cell(row, idx) { return (idx >= 0 && idx < row.length) ? row[idx] : ""; }
+
+  function computeAgg() {
+    var map = state.map, rows = state.rawRows;
+    var estimated = map.cost < 0;
+    var models = {}, days = {};
+    var totalCost = 0, totalIn = 0, totalOut = 0, used = 0, skipped = 0;
+    var unpriced = {};
+
+    for (var r = 0; r < rows.length; r++) {
+      var row = rows[r];
+      var mName = map.model >= 0 ? String(cell(row, map.model)).trim() : "";
+      var inT = num(cell(row, map.in)); if (isNaN(inT)) inT = 0;
+      var outT = num(cell(row, map.out)); if (isNaN(outT)) outT = 0;
+      var costRaw = map.cost >= 0 ? num(cell(row, map.cost)) : NaN;
+
+      var hasData = (mName !== "") || inT > 0 || outT > 0 || (map.cost >= 0 && !isNaN(costRaw));
+      if (!hasData) { skipped++; continue; }
+      used++;
+
+      if (mName === "") mName = "(unlabeled)";
+
+      var cost;
+      if (estimated) {
+        var p = priceFor(mName);
+        if (p) {
+          cost = (inT / 1e6) * (Number(p.in) || 0) + (outT / 1e6) * (Number(p.out) || 0);
+        } else {
+          cost = 0;
+          unpriced[mName] = true;
+        }
+      } else {
+        cost = isNaN(costRaw) ? 0 : costRaw;
+      }
+
+      var m = models[mName];
+      if (!m) { m = models[mName] = { name: mName, req: 0, inTok: 0, outTok: 0, cost: 0 }; }
+      m.req++; m.inTok += inT; m.outTok += outT; m.cost += cost;
+
+      totalCost += cost; totalIn += inT; totalOut += outT;
+
+      var dk = map.date >= 0 ? dayKey(cell(row, map.date)) : null;
+      if (dk) { days[dk] = (days[dk] || 0) + cost; }
+    }
+
+    var modelArr = [];
+    for (var key in models) { if (models.hasOwnProperty(key)) modelArr.push(models[key]); }
+    modelArr.sort(function (a, b) { return b.cost - a.cost || (b.inTok + b.outTok) - (a.inTok + a.outTok); });
+
+    var dayArr = [];
+    for (var dkey in days) { if (days.hasOwnProperty(dkey)) dayArr.push({ key: dkey, cost: days[dkey] }); }
+    dayArr.sort(function (a, b) { return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; });
+
+    var unpricedArr = [];
+    for (var u in unpriced) { if (unpriced.hasOwnProperty(u)) unpricedArr.push(u); }
+
+    return {
+      estimated: estimated,
+      models: modelArr,
+      days: dayArr,
+      totalCost: totalCost,
+      totalTokens: totalIn + totalOut,
+      totalIn: totalIn,
+      totalOut: totalOut,
+      usedRows: used,
+      skippedRows: skipped,
+      unpriced: unpricedArr,
+      hasDate: map.date >= 0
+    };
+  }
+
+  /* ---------- rendering: stat tiles + model bars ---------- */
+  function renderOutput(agg) {
+    var top = agg.models.length ? agg.models[0] : null;
+    var topName = (top && agg.totalCost > 0) ? top.name : "—";
+    var topNote = (top && agg.totalCost > 0) ? fmtUSD(top.cost) : "no spend yet";
+
+    var rangeNote = "input + output";
+    var dayNote = "—";
+    if (agg.days.length) {
+      var first = agg.days[0].key.slice(5), last = agg.days[agg.days.length - 1].key.slice(5);
+      dayNote = agg.days.length === 1 ? first : (first + " → " + last);
+    }
+
+    // total-spend subline: a cheap per-day trend when we have dates, else the source of the number
+    var spendNote, spendEst;
+    if (agg.hasDate && agg.days.length && agg.totalCost > 0) {
+      spendNote = "≈ " + fmtUSD(agg.totalCost / agg.days.length) + " / day";
+      spendEst = false;
+    } else {
+      spendNote = agg.estimated ? "estimated from tokens" : "from your CSV";
+      spendEst = agg.estimated;
+    }
+
+    statGrid.innerHTML =
+      tile("Total spend", fmtUSD(agg.totalCost), spendNote, spendEst) +
+      tile("Total tokens", fmtCompact(agg.totalTokens), rangeNote, false) +
+      tile("Days covered", agg.hasDate ? String(agg.days.length) : "—", agg.hasDate ? dayNote : "no date column", false) +
+      tile("Top model", esc(topName), topNote, false);
+
+    if (agg.estimated) {
+      modeChip.className = "mode-chip est";
+      modeChip.textContent = "Estimated from tokens — edit prices below";
+    } else {
+      modeChip.className = "mode-chip actual";
+      modeChip.textContent = "Costs read from your file";
+    }
+    modeChip.hidden = false;
+
+    // model bars
+    var maxCost = 0;
+    for (var i = 0; i < agg.models.length; i++) { if (agg.models[i].cost > maxCost) maxCost = agg.models[i].cost; }
+    var html = "";
+    if (!agg.models.length) {
+      html = '<p class="day-note" style="padding:0.4rem 0">No usable rows found — check the column mapping.</p>';
+    } else {
+      for (var j = 0; j < agg.models.length; j++) {
+        var m = agg.models[j];
+        var pct = agg.totalCost > 0 ? (m.cost / agg.totalCost * 100) : 0;
+        var w = maxCost > 0 ? (m.cost / maxCost * 100) : 0;
+        html +=
+          '<div class="mbar">' +
+          '<div class="mbar-top"><span class="mname" title="' + esc(m.name) + '">' + esc(m.name) + "</span>" +
+          '<span class="mval">' + fmtUSD(m.cost) + ' <span class="pct">' + pct.toFixed(1) + "%</span></span></div>" +
+          '<div class="meter"><i style="width:' + w.toFixed(1) + '%"></i></div>' +
+          "</div>";
+      }
+    }
+    modelBars.innerHTML = html;
+
+    emptyState.hidden = true;
+    dash.hidden = false;
+    var hasData = agg.models.length > 0;
+    exportBtn.disabled = !hasData;
+    exportTop.hidden = !hasData;
+    setActionBar(hasData);
+
+    stateTag.innerHTML = state.isSample
+      ? '<span class="tag brass">Example</span>'
+      : '<span class="tag ok">Live · ' + fmtInt(agg.usedRows) + " rows</span>";
+  }
+
+  function setActionBar(show) {
+    actionBar.hidden = !show;
+    document.body.classList.toggle("has-action-bar", !!show);
+  }
+
+  function tile(lab, val, note, est) {
+    return '<div class="stat"><div class="lab">' + esc(lab) + '</div>' +
+      '<div class="val">' + val + "</div>" +
+      '<div class="stat-note' + (est ? " est" : "") + '">' + esc(note) + "</div></div>";
+  }
+
+  /* ---------- rendering: day chart (hand-rolled SVG) ---------- */
+  function niceMax(max) {
+    if (max <= 0) return 1;
+    var pow = Math.pow(10, Math.floor(Math.log(max) / Math.LN10));
+    var frac = max / pow;
+    var nice = frac <= 1 ? 1 : frac <= 2 ? 2 : frac <= 5 ? 5 : 10;
+    return nice * pow;
+  }
+  function renderDayChart(agg) {
+    if (!agg.hasDate) {
+      dayChartEl.innerHTML = '<p class="day-note">No date column mapped — pick one under “Column mapping” to see spend by day.</p>';
+      return;
+    }
+    if (!agg.days.length) {
+      dayChartEl.innerHTML = '<p class="day-note">No dated rows to chart.</p>';
+      return;
+    }
+    var days = agg.days;
+    var W = 720, H = 260, padL = 54, padR = 14, padT = 14, padB = 30;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var n = days.length;
+    var max = 0;
+    for (var i = 0; i < n; i++) { if (days[i].cost > max) max = days[i].cost; }
+    var top = niceMax(max);
+
+    var svg = '<svg viewBox="0 0 ' + W + " " + H + '" class="daychart" role="img" aria-label="Spend by day" preserveAspectRatio="xMidYMid meet">';
+
+    // gridlines + y labels (3) at 1/3, 2/3, 3/3 of nice max
+    var fr = [1, 2 / 3, 1 / 3];
+    for (var g = 0; g < fr.length; g++) {
+      var val = top * fr[g];
+      var gy = padT + plotH * (1 - fr[g]);
+      svg += '<line x1="' + padL + '" y1="' + gy.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + gy.toFixed(1) +
+        '" stroke="var(--line)" stroke-width="1"/>';
+      svg += '<text x="' + (padL - 8) + '" y="' + (gy + 3).toFixed(1) + '" text-anchor="end" font-size="9" fill="var(--ink-faint)">' +
+        esc(moneyAxis(val)) + "</text>";
+    }
+    // baseline axis (hairline)
+    var baseY = padT + plotH;
+    svg += '<line x1="' + padL + '" y1="' + baseY + '" x2="' + (W - padR) + '" y2="' + baseY + '" stroke="var(--line-strong)" stroke-width="1"/>';
+
+    // bars
+    var slot = plotW / n;
+    var barW = Math.min(slot * 0.68, 44);
+    var step = Math.max(1, Math.ceil(n / 8));
+    for (var b = 0; b < n; b++) {
+      var d = days[b];
+      var x = padL + slot * b + (slot - barW) / 2;
+      var bh = top > 0 ? plotH * (d.cost / top) : 0;
+      if (bh < 0) bh = 0;
+      var y = baseY - bh;
+      svg += '<rect class="bar" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + barW.toFixed(1) +
+        '" height="' + bh.toFixed(1) + '" fill="var(--brass)" rx="1.5">' +
+        "<title>" + esc(d.key + " · " + fmtUSD(d.cost)) + "</title></rect>";
+      if (b % step === 0 || b === n - 1) {
+        var lx = x + barW / 2;
+        svg += '<text x="' + lx.toFixed(1) + '" y="' + (baseY + 15) + '" text-anchor="middle" font-size="8.5" fill="var(--ink-faint)">' +
+          esc(d.key.slice(5)) + "</text>";
+      }
+    }
+    svg += "</svg>";
+    dayChartEl.innerHTML = svg;
+  }
+
+  /* ---------- rendering: data table ---------- */
+  function renderTable(agg) {
+    var costHead = agg.estimated ? "est. cost" : "cost (USD)";
+    var head = "<thead><tr>" +
+      "<th>Model</th>" +
+      '<th class="rt">Rows</th>' +
+      '<th class="rt">Input tokens</th>' +
+      '<th class="rt">Output tokens</th>' +
+      '<th class="rt">' + costHead + "</th>" +
+      "</tr></thead>";
+    var body = "<tbody>";
+    var tReq = 0, tIn = 0, tOut = 0, tCost = 0;
+    for (var i = 0; i < agg.models.length; i++) {
+      var m = agg.models[i];
+      tReq += m.req; tIn += m.inTok; tOut += m.outTok; tCost += m.cost;
+      body += "<tr><td>" + esc(m.name) + "</td>" +
+        '<td class="rt">' + fmtInt(m.req) + "</td>" +
+        '<td class="rt">' + fmtInt(m.inTok) + "</td>" +
+        '<td class="rt">' + fmtInt(m.outTok) + "</td>" +
+        '<td class="rt">' + fmtUSD(m.cost) + "</td></tr>";
+    }
+    body += "</tbody>";
+    var foot = "<tfoot><tr><td>Total</td>" +
+      '<td class="rt">' + fmtInt(tReq) + "</td>" +
+      '<td class="rt">' + fmtInt(tIn) + "</td>" +
+      '<td class="rt">' + fmtInt(tOut) + "</td>" +
+      '<td class="rt">' + fmtUSD(tCost) + "</td></tr></tfoot>";
+    dataTable.innerHTML = head + body + foot;
+  }
+
+  /* ---------- status + warnings ---------- */
+  function renderStatus(agg) {
+    var bits = "<b>" + fmtInt(agg.usedRows) + "</b> row" + (agg.usedRows === 1 ? "" : "s") + " read";
+    if (agg.skippedRows > 0) bits += " · <b>" + fmtInt(agg.skippedRows) + "</b> blank/skipped";
+    if (state.truncated) bits += ' · <span style="color:var(--warn)">capped at ' + fmtInt(MAX_ROWS) + " rows — file was longer</span>";
+    statusEl.innerHTML = bits;
+
+    if (agg.estimated && agg.unpriced.length) {
+      var list = agg.unpriced.slice(0, 6).map(esc).join("</code>, <code>");
+      var extra = agg.unpriced.length > 6 ? " and " + (agg.unpriced.length - 6) + " more" : "";
+      warnBox.innerHTML = "<b>No price set</b> for <code>" + list + "</code>" + extra +
+        ". Add a matching row in <b>Model pricing</b> below to estimate their spend.";
+      warnBox.hidden = false;
+      if (!priceEditor.open) priceEditor.open = true;
+    } else if (agg.estimated) {
+      warnBox.innerHTML = "Spend is <b>estimated from tokens</b> — no cost column found. Rates are editable estimates under <b>Model pricing</b>.";
+      warnBox.hidden = false;
+    } else {
+      warnBox.hidden = true;
+    }
+  }
+
+  /* ---------- column mapping UI ---------- */
+  var ROLES = [
+    { key: "date", label: "Date" },
+    { key: "model", label: "Model" },
+    { key: "in", label: "Input tokens" },
+    { key: "out", label: "Output tokens" },
+    { key: "cost", label: "Cost (USD)" }
+  ];
+  function buildMapping() {
+    var html = "";
+    for (var r = 0; r < ROLES.length; r++) {
+      var role = ROLES[r];
+      var opts = '<option value="-1">— none —</option>';
+      for (var h = 0; h < state.headers.length; h++) {
+        var sel = state.map[role.key] === h ? " selected" : "";
+        opts += '<option value="' + h + '"' + sel + ">" + esc(state.headers[h] || ("col " + (h + 1))) + "</option>";
+      }
+      html += '<label><span class="lab">' + esc(role.label) + '</span><select data-role="' + role.key + '">' + opts + "</select></label>";
+    }
+    mapGrid.innerHTML = html;
+    var sels = mapGrid.querySelectorAll("select");
+    for (var s = 0; s < sels.length; s++) {
+      sels[s].addEventListener("change", function (e) {
+        state.map[e.target.getAttribute("data-role")] = parseInt(e.target.value, 10);
+        recompute();
+      });
+    }
+  }
+
+  /* ---------- price editor UI ---------- */
+  function buildPriceEditor() {
+    var html = "";
+    for (var i = 0; i < state.prices.length; i++) {
+      var p = state.prices[i];
+      html += "<tr>" +
+        '<td><input type="text" data-i="' + i + '" data-f="match" value="' + esc(p.match) + '" placeholder="model substring"></td>' +
+        '<td class="rt"><input class="pnum" type="number" step="0.01" min="0" data-i="' + i + '" data-f="in" value="' + esc(p.in) + '"></td>' +
+        '<td class="rt"><input class="pnum" type="number" step="0.01" min="0" data-i="' + i + '" data-f="out" value="' + esc(p.out) + '"></td>' +
+        '<td><button type="button" class="prm" data-rm="' + i + '" title="Remove">×</button></td>' +
+        "</tr>";
+    }
+    priceRows.innerHTML = html;
+  }
+  var recomputeIfEstimated = debounce(function () {
+    savePrices();
+    if (state.rawRows.length && state.map.cost < 0) recompute();
+  }, 280);
+  priceRows.addEventListener("input", function (e) {
+    var t = e.target;
+    var i = t.getAttribute("data-i");
+    if (i == null) return;
+    i = parseInt(i, 10);
+    var f = t.getAttribute("data-f");
+    if (f === "match") state.prices[i].match = t.value;
+    else state.prices[i][f] = parseFloat(t.value) || 0;
+    recomputeIfEstimated();
+  });
+  priceRows.addEventListener("click", function (e) {
+    var rm = e.target.getAttribute && e.target.getAttribute("data-rm");
+    if (rm == null) return;
+    state.prices.splice(parseInt(rm, 10), 1);
+    savePrices();
+    buildPriceEditor();
+    if (state.rawRows.length && state.map.cost < 0) recompute();
+  });
+  addPriceBtn.addEventListener("click", function () {
+    state.prices.push({ match: "", in: 0, out: 0 });
+    savePrices();
+    buildPriceEditor();
+    var inputs = priceRows.querySelectorAll('input[data-f="match"]');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  });
+  resetPriceBtn.addEventListener("click", function () {
+    state.prices = DEFAULT_PRICES.map(function (p) { return { match: p.match, in: p.in, out: p.out }; });
+    savePrices();
+    buildPriceEditor();
+    if (state.rawRows.length && state.map.cost < 0) recompute();
+  });
+
+  /* ---------- pipeline ---------- */
+  function recompute() {
+    var agg = computeAgg();
+    state.agg = agg;
+    renderOutput(agg);
+    renderDayChart(agg);
+    renderTable(agg);
+    renderStatus(agg);
+    chartsSection.hidden = false;
+  }
+
+  /* inline validation for the paste box (never blocks typing) */
+  function setCsvValidity(kind, msg) {
+    csvInput.classList.remove("ok", "err");
+    if (kind === "none") {
+      csvMsg.hidden = true;
+      csvMsg.className = "field-msg";
+      csvMsg.textContent = "";
+      return;
+    }
+    csvInput.classList.add(kind);
+    csvMsg.className = "field-msg " + kind;
+    csvMsg.textContent = msg;
+    csvMsg.hidden = false;
+  }
+
+  /* a friendly one-liner about what kind of export we think this is */
+  function renderMapNote() {
+    var h = state.headers.map(function (x) { return String(x).toLowerCase().trim(); }).join("|");
+    var note;
+    if (/prompt_tokens|completion_tokens|n_context_tokens|n_generated_tokens/.test(h)) {
+      note = "Detected an OpenAI-style export — columns mapped automatically.";
+    } else if (/input_tokens|output_tokens|usage_date/.test(h)) {
+      note = "Detected an Anthropic-style export — columns mapped automatically.";
+    } else {
+      note = "Mapped your columns automatically — adjust any that look off.";
+    }
+    mapNote.textContent = note;
+    mapNote.hidden = false;
+  }
+
+  /* skeleton tiles so a big parse has something painted before it blocks */
+  function showSkeleton() {
+    emptyState.hidden = true;
+    modeChip.hidden = true;
+    dash.hidden = false;
+    var t = '<div class="sk-tile">' +
+      '<div class="skeleton" style="width:55%;height:10px"></div>' +
+      '<div class="skeleton" style="height:24px"></div>' +
+      '<div class="skeleton" style="width:70%;height:8px"></div></div>';
+    statGrid.innerHTML = t + t + t + t;
+  }
+
+  function loadText(text, sourceLabel, isSample) {
+    text = text || "";
+    // big files: paint a skeleton, then parse off the frame so it actually shows
+    if (text.length > BIG_TEXT) {
+      showSkeleton();
+      setTimeout(function () { loadTextNow(text, sourceLabel, isSample); }, 0);
+    } else {
+      loadTextNow(text, sourceLabel, isSample);
+    }
+  }
+
+  function loadTextNow(text, sourceLabel, isSample) {
+    state.rawText = text || "";
+    state.isSample = !!isSample;
+
+    var parsed = parseCSV(state.rawText, MAX_ROWS);
+    state.truncated = parsed.truncated;
+    var rows = parsed.rows;
+
+    if (!rows.length || (rows.length === 1 && rows[0].length <= 1 && String(rows[0][0]).trim() === "")) {
+      resetOutput();
+      if (state.rawText.trim()) {
+        statusEl.innerHTML = '<span style="color:var(--bad)">Could not read any rows — is this a CSV with a header line?</span>';
+        mapbar.hidden = false;
+        mapGrid.innerHTML = "";
+        mapNote.hidden = true;
+        warnBox.hidden = true;
+        setCsvValidity("err", "No rows found — this needs a header line and comma-separated values.");
+      } else {
+        setCsvValidity("none");
+      }
+      return;
+    }
+
+    state.headers = rows[0];
+    state.rawRows = rows.slice(1);
+    state.map = detectAll(state.headers);
+
+    if (sourceLabel) fileChip.textContent = sourceLabel;
+
+    mapbar.hidden = false;
+    renderMapNote();
+    buildMapping();
+    recompute();
+
+    if (csvInput.value.trim()) {
+      setCsvValidity("ok", (isSample ? "Example loaded" : "Read as CSV") + " — your ledger is on the right.");
+    } else {
+      setCsvValidity("none");
+    }
+  }
+
+  function resetOutput() {
+    dash.hidden = true;
+    chartsSection.hidden = true;
+    emptyState.hidden = false;
+    exportBtn.disabled = true;
+    exportTop.hidden = true;
+    modeChip.hidden = true;
+    setActionBar(false);
+    stateTag.innerHTML = "";
+  }
+
+  /* ---------- input wiring ---------- */
+  var onPaste = debounce(function () {
+    fileChip.textContent = "";
+    var hasText = !!csvInput.value.trim();
+    loadText(csvInput.value, hasText ? "pasted" : "", false);
+    if (!hasText) { resetOutput(); mapbar.hidden = true; setCsvValidity("none"); }
+    hidePasteOffer();
+  }, 250);
+  csvInput.addEventListener("input", onPaste);
+
+  function readFile(f) {
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var text = String(reader.result || "");
+      // avoid stuffing very large files into the textarea DOM
+      if (text.length <= 200000) csvInput.value = text;
+      else csvInput.value = "";
+      loadText(text, f.name, false);
+    };
+    reader.onerror = function () {
+      statusEl.innerHTML = '<span style="color:var(--bad)">Could not read that file.</span>';
+      mapbar.hidden = false;
+    };
+    reader.readAsText(f);
+  }
+
+  csvFile.addEventListener("change", function () {
+    readFile(csvFile.files && csvFile.files[0]);
+  });
+
+  function loadSample() {
+    var csv = sampleCSV();
+    csvInput.value = csv;
+    csvFile.value = "";
+    hidePasteOffer();
+    loadText(csv, "example data · ~45 days", true);
+    JB.toast("Example data loaded — edit the prices below to match your account");
+  }
+  sampleBtn.addEventListener("click", loadSample);
+  if (sampleBtn2) sampleBtn2.addEventListener("click", loadSample);
+
+  function doClear() {
+    csvInput.value = "";
+    csvFile.value = "";
+    fileChip.textContent = "";
+    state.rawText = ""; state.headers = []; state.rawRows = []; state.truncated = false; state.isSample = false;
+    state.map = { date: -1, model: -1, in: -1, out: -1, cost: -1 };
+    mapbar.hidden = true;
+    mapGrid.innerHTML = "";
+    mapNote.hidden = true;
+    warnBox.hidden = true;
+    statusEl.innerHTML = "";
+    setCsvValidity("none");
+    hidePasteOffer();
+    resetOutput();
+    csvInput.focus();
+  }
+  clearBtn.addEventListener("click", doClear);
+  if (clearBtnMobile) clearBtnMobile.addEventListener("click", doClear);
+
+  function doExport() {
+    var agg = state.agg;
+    if (!agg || !agg.models.length) return;
+    var rows = [["model", "rows", "input_tokens", "output_tokens", (agg.estimated ? "est_cost_usd" : "cost_usd")]];
+    var tReq = 0, tIn = 0, tOut = 0, tCost = 0;
+    for (var i = 0; i < agg.models.length; i++) {
+      var m = agg.models[i];
+      tReq += m.req; tIn += m.inTok; tOut += m.outTok; tCost += m.cost;
+      rows.push([m.name, m.req, Math.round(m.inTok), Math.round(m.outTok), m.cost.toFixed(4)]);
+    }
+    rows.push(["TOTAL", tReq, Math.round(tIn), Math.round(tOut), tCost.toFixed(4)]);
+    var csv = rows.map(function (r) {
+      return r.map(function (v) {
+        var s = String(v);
+        /* neutralize formula-leading cells (= + - @) so spreadsheets won't execute them */
+        if (/^[=+\-@\t\r]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s)) s = "'" + s;
+        return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }).join(",");
+    }).join("\r\n");
+    JB.download("token-ledger-summary.csv", csv, "text/csv;charset=utf-8");
+    JB.toast("Summary CSV downloaded — one row per model");
+  }
+  exportBtn.addEventListener("click", doExport);
+  if (exportTop) exportTop.addEventListener("click", doExport);
+  if (exportBtnMobile) exportBtnMobile.addEventListener("click", doExport);
+
+  /* ---------- drop-to-parse: whole controls panel is a drop target ---------- */
+  ["dragenter", "dragover"].forEach(function (ev) {
+    controlsEl.addEventListener(ev, function (e) {
+      if (e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") < 0) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+      controlsEl.classList.add("drop-hot");
+    });
+  });
+  ["dragleave", "dragend"].forEach(function (ev) {
+    controlsEl.addEventListener(ev, function (e) {
+      // only clear when the cursor actually leaves the panel
+      if (ev === "dragleave" && controlsEl.contains(e.relatedTarget)) return;
+      controlsEl.classList.remove("drop-hot");
+    });
+  });
+  controlsEl.addEventListener("drop", function (e) {
+    e.preventDefault();
+    controlsEl.classList.remove("drop-hot");
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) readFile(f);
+  });
+
+  /* ---------- paste anywhere on the page: offer to load obvious CSV ---------- */
+  function looksLikeCSV(text) {
+    if (!text) return false;
+    var lines = text.replace(/\r/g, "").split("\n").filter(function (l) { return l.trim() !== ""; });
+    if (lines.length < 2) return false;
+    return lines[0].indexOf(",") >= 0 && lines[1].indexOf(",") >= 0;
+  }
+  function showPasteOffer(text) {
+    pendingPaste = text;
+    pasteOffer.hidden = false;
+  }
+  function hidePasteOffer() {
+    pendingPaste = "";
+    pasteOffer.hidden = true;
+  }
+  document.addEventListener("paste", function (e) {
+    var t = e.target;
+    // if the paste is already headed for a field, let the field handle it
+    if (t && (t === csvInput || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || (t.isContentEditable))) return;
+    var data = e.clipboardData && e.clipboardData.getData("text/plain");
+    if (looksLikeCSV(data)) showPasteOffer(data);
+  });
+  if (pasteLoad) pasteLoad.addEventListener("click", function () {
+    var text = pendingPaste;
+    hidePasteOffer();
+    if (!text) return;
+    csvFile.value = "";
+    if (text.length <= 200000) csvInput.value = text; else csvInput.value = "";
+    loadText(text, "pasted", false);
+  });
+  if (pasteDismiss) pasteDismiss.addEventListener("click", hidePasteOffer);
+
+  /* ---------- first-run hint (dismissible, persisted) ---------- */
+  (function initHint() {
+    var dismissed = false;
+    try { dismissed = localStorage.getItem(HINT_KEY) === "1"; } catch (e) {}
+    if (!dismissed && hintOnce) hintOnce.hidden = false;
+    if (hintClose) hintClose.addEventListener("click", function () {
+      if (hintOnce) hintOnce.hidden = true;
+      try { localStorage.setItem(HINT_KEY, "1"); } catch (e) {}
+    });
+  })();
+
+  if (freeBtn) {
+    freeBtn.addEventListener("click", function () {
+      csvInput.focus();
+      csvInput.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }
+
+  /* ---------- sample data (~45 days, clearly labeled) ---------- */
+  function sampleCSV() {
+    var models = [
+      { name: "claude-opus-4-8",         base: 140000,  ratio: 0.32, pin: 15,   pout: 75,  skip: 0.30 },
+      { name: "claude-sonnet-4-6",       base: 900000,  ratio: 0.38, pin: 3,    pout: 15,  skip: 0.08 },
+      { name: "gpt-5.1",                 base: 520000,  ratio: 0.48, pin: 1.25, pout: 10,  skip: 0.18 },
+      { name: "gpt-4o",                  base: 300000,  ratio: 0.55, pin: 2.5,  pout: 10,  skip: 0.25 },
+      { name: "text-embedding-3-large",  base: 2200000, ratio: 0,    pin: 0.13, pout: 0,   skip: 0.20 }
+    ];
+    var seed = 20260710;
+    function rnd() { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; }
+    var rows = [["date", "model", "input_tokens", "output_tokens", "cost_usd"]];
+    var today = new Date();
+    for (var d = 44; d >= 0; d--) {
+      var dt = new Date(today.getTime() - d * 86400000);
+      var key = dt.getFullYear() + "-" + ("0" + (dt.getMonth() + 1)).slice(-2) + "-" + ("0" + dt.getDate()).slice(-2);
+      var weekend = (dt.getDay() === 0 || dt.getDay() === 6);
+      for (var mi = 0; mi < models.length; mi++) {
+        var m = models[mi];
+        if (rnd() < m.skip) continue;
+        var factor = (weekend ? 0.4 : 1) * (0.6 + rnd() * 0.9);
+        var inT = Math.round(m.base * factor * (0.8 + rnd() * 0.5));
+        var outT = Math.round(inT * m.ratio * (0.7 + rnd() * 0.6));
+        var cost = (inT / 1e6) * m.pin + (outT / 1e6) * m.pout;
+        rows.push([key, m.name, inT, outT, cost.toFixed(2)]);
+      }
+    }
+    return rows.map(function (r) { return r.join(","); }).join("\n");
+  }
+
+  /* ---------- read-only access for the Pro builder ----------
+     `aggregate` runs the free dashboard's own costing over rows supplied by the
+     caller, so a merged Pro report can never disagree with what is on screen. */
+  window.JBTokens = {
+    state: state,
+    parseCSV: parseCSV,
+    detectAll: detectAll,
+    defaultPrices: DEFAULT_PRICES.map(function (p) { return { match: p.match, in: p.in, out: p.out }; }),
+    maxRows: MAX_ROWS,
+    aggregate: function (rows, map, prices) {
+      var saved = { rawRows: state.rawRows, map: state.map, prices: state.prices };
+      state.rawRows = rows || [];
+      state.map = map || state.map;
+      if (prices) state.prices = prices;
+      try {
+        return computeAgg();
+      } finally {
+        state.rawRows = saved.rawRows;
+        state.map = saved.map;
+        state.prices = saved.prices;
+      }
+    }
+  };
+
+  /* ---------- init ---------- */
+  buildPriceEditor();
+})();
+</script>
+</body>
+</html>
