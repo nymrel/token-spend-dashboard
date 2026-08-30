@@ -1,0 +1,29 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    cooldown:
+      default-days: 7
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 5
+    groups:
+      browser-quality-tooling:
+        patterns:
+          - "@axe-core/playwright"
+          - "@playwright/test"
+          - "serve"
+
+  - package-ecosystem: github-actions
+    directory: /
+    cooldown:
+      default-days: 7
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:30"
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 5
