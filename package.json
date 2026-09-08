@@ -1,0 +1,23 @@
+{
+  "name": "@nymrel/token-spend-dashboard-source",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Source and acceptance gates for Nymrel Token Ledger.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0 <25",
+    "npm": ">=10.9.0 <12"
+  },
+  "packageManager": "npm@11.19.1",
+  "scripts": {
+    "verify:static": "node scripts/verify-static-tool.mjs",
+    "serve:test": "serve --no-clipboard --listen 4173 .",
+    "test:e2e": "playwright test",
+    "check": "npm run verify:static && npm run test:e2e"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.62.1",
+    "serve": "14.2.6"
+  }
+}
