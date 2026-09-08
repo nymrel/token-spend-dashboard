@@ -39,7 +39,7 @@ disk will render unstyled.
 | `assets/checkout-config.js` | The checkout registry template |
 | `assets/fonts/` | The three fonts the page uses |
 
-`tools/token-spend-dashboard/index.html` is byte-for-byte the file nymrel.com serves.
+`tools/token-spend-dashboard/index.html` is the reviewable source for the hosted tool; deployment and live-byte identity require separate evidence.
 
 ## A note on the paid tier
 

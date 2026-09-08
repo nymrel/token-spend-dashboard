@@ -21,5 +21,7 @@ jobs:
     permissions:
       actions: read # Inspect the reusable worker run and its artifacts.
       contents: write # Create the worker branch and commit a bounded proposal.
+      issues: read # Required by the pinned reusable propose job.
       pull-requests: write # Open or update the guarded maintenance pull request.
       copilot-requests: write # Invoke the repository-scoped Copilot coding worker.
+      statuses: write # Required by the guarded canary reporter.

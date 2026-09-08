@@ -59,7 +59,12 @@ check(/Vercel Web Analytics/i.test(html), "page privacy copy must disclose hoste
 check(/Vercel Web Analytics/i.test(readme), "README privacy copy must disclose hosted Vercel Web Analytics");
 check(!/the tool makes no server calls/i.test(`${html}\n${readme}`), "privacy copy must not deny all server requests");
 
-const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
+// Ignore script source while inspecting IDs; do not transform HTML as if sanitized.
+const scriptRanges = [...html.matchAll(/<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/gi)]
+  .map((match) => [match.index, match.index + match[0].length]);
+const ids = [...html.matchAll(/\bid="([^"]+)"/g)]
+  .filter((match) => !scriptRanges.some(([start, end]) => match.index >= start && match.index < end))
+  .map((match) => match[1]);
 const duplicateIds = [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))];
 check(duplicateIds.length === 0, `duplicate element ids: ${duplicateIds.join(", ")}`);
 
