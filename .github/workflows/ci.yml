@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-contract:
+    name: Static / ${{ matrix.os }} / Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: ["22.12.0", "24.20.0"]
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6.3.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Pin npm
+        # zizmor: ignore[adhoc-packages] npm itself is exact-pinned by packageManager.
+        run: npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund
+
+      - name: Install locked verification dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Verify static source contract
+        run: npm run verify:static
+
+      - name: Audit verification dependencies
+        run: npm audit --audit-level=high
+
+  browser-contract:
+    name: Browser / ${{ matrix.project }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [desktop-chromium, mobile-chromium]
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6.3.0
+        with:
+          node-version: "24.20.0"
+          cache: npm
+
+      - name: Pin npm
+        # zizmor: ignore[adhoc-packages] npm itself is exact-pinned by packageManager.
+        run: npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund
+
+      - name: Install locked verification dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Install Chromium runtime
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser acceptance
+        env:
+          PLAYWRIGHT_PROJECT: ${{ matrix.project }}
+        run: npm run test:e2e -- --project="$PLAYWRIGHT_PROJECT"
+
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: token-spend-dashboard-${{ matrix.project }}-${{ github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  workflow-security:
+    name: Workflow security
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Audit GitHub Actions definitions
+        uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.5.2
+        with:
+          version: 1.29.0
+          persona: pedantic
+          online-audits: false
+          advanced-security: false
+          annotations: true

@@ -102,7 +102,7 @@
           "name": "Is my data safe?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Yes. Everything is processed in your browser — nothing you paste or load is ever sent to a server. Your pasted data disappears when you close the tab; only your price-table edits and preferences are saved locally in this browser, and 'Reset to defaults' clears them."
+            "text": "Yes. Imported rows and derived ledger values are processed locally and are not attached to network requests. Your pasted data disappears when you close the tab; only price-table edits and preferences are saved locally. The hosted page also loads aggregate Vercel Web Analytics."
           }
         },
         {
@@ -468,7 +468,7 @@
       </details>
       <details>
         <summary>Is my data safe?</summary>
-        <p class="a">Yes. Everything is processed in your browser — nothing you paste or load is ever sent to a server. Your pasted data disappears when you close the tab; only your price-table edits and preferences are saved locally in this browser, and “Reset to defaults” clears them.</p>
+        <p class="a">Yes. Imported rows and derived ledger values are processed locally and are not attached to network requests. Your pasted data disappears when you close the tab; only your price-table edits and preferences are saved locally in this browser, and “Reset to defaults” clears them. The hosted page also loads aggregate Vercel Web Analytics.</p>
       </details>
       <details>
         <summary>Which providers and formats work?</summary>
@@ -518,7 +518,7 @@
 <script>
 /* ============================================================
    Token Ledger — client-side CSV spend dashboard.
-   Vanilla JS, no libraries, no network. Runs entirely in-browser.
+   Vanilla JS, no libraries. Ledger parsing and aggregation run entirely in-browser.
    ============================================================ */
 (function () {
   "use strict";
