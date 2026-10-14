@@ -1,3 +1,4 @@
+import { cssAssetReferences, htmlAssetReferences, verifyLocalAssets } from "./local-assets.mjs";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
@@ -102,21 +103,13 @@ for (const path of javascriptFiles) {
   }
 }
 
-const assetReferences = [
-  ...html.matchAll(/<(?:script|link)\b[^>]*(?:src|href)="(\/[^"]+)"[^>]*>/gi),
-].map((match) => match[1].split(/[?#]/, 1)[0]);
-for (const reference of assetReferences) {
-  if (reference === "/_vercel/insights/script.js") continue;
-  const localPath = reference.replace(/^\//, "");
-  check(existsSync(join(root, localPath)), `missing local asset referenced by HTML: ${reference}`);
-}
+const assetReferences = htmlAssetReferences(html);
+failures.push(...verifyLocalAssets(root, toolPath, assetReferences, {
+  hostedPaths: ["/_vercel/insights/script.js"],
+}));
 
 for (const path of filesUnder("assets").filter((candidate) => candidate.endsWith(".css"))) {
-  const css = read(path);
-  for (const match of css.matchAll(/url\(["']?(\/[^)"']+)["']?\)/gi)) {
-    const localPath = match[1].split(/[?#]/, 1)[0].replace(/^\//, "");
-    check(existsSync(join(root, localPath)), `missing local asset referenced by ${path}: ${match[1]}`);
-  }
+  failures.push(...verifyLocalAssets(root, path, cssAssetReferences(read(path))));
 }
 
 const checkoutTemplate = read("assets/checkout-config.js");
