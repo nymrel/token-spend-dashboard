@@ -578,6 +578,7 @@
   };
   // Unvalidated input stays separate from the active ledger consumed by Pro.
   var pendingImport = null;
+  var rejectedInput = false;
 
   /* ---------- element refs ---------- */
   var $ = function (id) { return document.getElementById(id); };
@@ -1063,7 +1064,8 @@
     for (var s = 0; s < sels.length; s++) {
       sels[s].addEventListener("change", function (e) {
         if (!pendingImport) pendingImport = Object.assign({}, state, {
-          map: Object.assign({}, state.map), sourceLabel: fileChip.textContent
+          map: Object.assign({}, state.map), sourceLabel: fileChip.textContent,
+          currentInput: !rejectedInput
         });
         pendingImport.map[e.target.getAttribute("data-role")] = parseInt(e.target.value, 10);
         recompute();
@@ -1136,12 +1138,13 @@
       return;
     }
     if (pendingImport) {
+      if (pendingImport.currentInput) rejectedInput = false;
       ["rawText", "headers", "rawRows", "truncated", "map", "isSample"].forEach(function (key) { state[key] = pendingImport[key]; });
       fileChip.textContent = pendingImport.sourceLabel;
       pendingImport = null;
     }
-    exportLabels(false);
-    setCsvValidity("ok", "Usage loaded — your spend summary is ready.");
+    exportLabels(rejectedInput);
+    if (!rejectedInput) setCsvValidity("ok", "Usage loaded — your spend summary is ready.");
     state.agg = agg;
     renderOutput(agg);
     renderDayChart(agg);
@@ -1202,6 +1205,7 @@
   }
 
   function rejectImport(problem) {
+    rejectedInput = true;
     var previous = state.agg && state.agg.models.length;
     setCsvValidity("err", problem.message + (previous ? " Your previous ledger is still shown and available to export." : ""));
     exportLabels(!!previous);
@@ -1222,6 +1226,7 @@
   function loadTextNow(text, sourceLabel, isSample) {
     pendingImport = null;
     if (!text.trim()) {
+      rejectedInput = false;
       state.rawText = ""; state.headers = []; state.rawRows = []; state.agg = null;
       fileChip.textContent = "";
       mapbar.hidden = true; resetOutput(); setCsvValidity("none"); exportLabels(false);
@@ -1240,6 +1245,7 @@
     }
 
     pendingImport = {
+      currentInput: true,
       rawText: text, isSample: !!isSample,
       truncated: parsed.truncated || parsed.rows.length - 1 > MAX_ROWS,
       headers: parsed.rows[0], rawRows: parsed.rows.slice(1, MAX_ROWS + 1),
@@ -1314,6 +1320,7 @@
 
   function doClear() {
     pendingImport = null;
+    rejectedInput = false;
     ++loadVersion; state.agg = null; exportLabels(false);
     csvInput.value = "";
     csvFile.value = "";

@@ -127,3 +127,28 @@ test("cancelled global costs cannot hide model or daily numeric overflow", async
   await expect(page.locator("#statGrid")).toContainText("$4.00");
   await expect(page.locator("#exportBtn")).toContainText("previous");
 });
+
+test("editing the previous ledger cannot mark a rejected visible CSV as current", async ({ page }) => {
+  const estimated = "model,input_tokens,output_tokens\nsonnet,1000000,0";
+  await page.locator("#csvInput").fill(estimated);
+  await expect(page.locator("#statGrid")).toContainText("$3.00");
+  await page.locator("#csvInput").fill("model,input_tokens,output_tokens");
+  await expect(page.locator("#csvInput")).toHaveAttribute("aria-invalid", "true");
+  await page.locator("#columnDetails > summary").click();
+  await page.locator('select[data-role="model"]').selectOption("0");
+  await expect(page.locator("#csvInput")).toHaveAttribute("aria-invalid", "true");
+  await expect(page.locator("#exportBtn")).toContainText("previous");
+  await page.locator("#priceEditor > summary").click();
+  await page.locator('#priceRows input[data-i="1"][data-f="in"]').fill("4");
+  await expect(page.locator("#statGrid")).toContainText("$4.00");
+  await expect(page.locator("#csvInput")).toHaveValue("model,input_tokens,output_tokens");
+  await expect(page.locator("#csvInput")).toHaveAttribute("aria-invalid", "true");
+  await expect(page.locator("#exportBtn")).toContainText("previous");
+  expect(await page.evaluate(() => {
+    const t = window.JBTokens, s = t.state;
+    return {rawText:s.rawText, total:t.aggregate(s.rawRows,s.map,s.prices).totalCost};
+  })).toEqual({rawText:estimated, total:4});
+  await page.locator("#csvInput").fill(csv);
+  await expect(page.locator("#csvInput")).toHaveAttribute("aria-invalid", "false");
+  await expect(page.locator("#exportBtn")).toHaveText("Export summary CSV");
+});
