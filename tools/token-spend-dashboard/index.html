@@ -125,6 +125,10 @@
   .filechip { font-family: var(--font-mono); font-size: 0.74rem; color: var(--ink-faint); }
 
   .mapbar { margin-top: 1.3rem; padding-top: 1.2rem; border-top: 1px solid var(--line); }
+  .column-details > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+  .column-details .note { font-size: 0.8rem; color: var(--ink-dim); }
+  .io-row .btn { min-height: 44px; }
+  #exportBtn, #exportTop { min-height: 44px; }
   .map-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
   .map-grid label { display: block; margin: 0; }
   .map-grid .lab { font-size: 0.62rem; margin-bottom: 5px; }
@@ -221,6 +225,25 @@
 
   /* keep the mobile action bar hidden until data exists (beats UA [hidden] on mobile) */
   .action-bar[hidden] { display: none !important; }
+  @media (max-width: 700px) {
+    body.has-action-bar { padding-bottom: var(--token-action-height, 112px); }
+    body.has-action-bar .jb-toast { bottom: calc(var(--token-action-height, 112px) + 12px); max-width: calc(100vw - 28px); box-sizing: border-box; }
+  }
+
+  @media (max-width: 420px) {
+    .stat-grid { grid-template-columns: minmax(0, 1fr); padding: 1rem; }
+    .stat-grid .stat { min-width: 0; }
+    .stat-grid .val { overflow-wrap: anywhere; }
+    .stat-note { white-space: normal; }
+    .price-tbl { table-layout: fixed; }
+    .price-tbl th:first-child { width: 40%; }
+    .price-tbl th:last-child { width: 12%; }
+    .price-tbl th { padding: 3px 2px; letter-spacing: 0; font-size: 0.55rem; }
+    .price-tbl td { padding: 3px 2px; }
+    .price-tbl input { min-width: 0; min-height: 44px; padding: 6px 4px; }
+    .price-tbl .pnum { width: 100%; }
+    .price-tbl .prm { width: 100%; min-height: 44px; padding: 0; }
+  }
 </style>
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"Organization","@id":"https://nymrel.com/#organization","email":"contact@nymrel.com","legalName":"JalenBuilds LLC","name":"Nymrel","url":"https://nymrel.com"}
@@ -285,12 +308,12 @@
 
         <label class="field" for="csvInput">
           <span class="lab">Paste your usage export <span class="code-chip">date, model, tokens</span></span>
-          <textarea id="csvInput" spellcheck="false" placeholder="date,model,input_tokens,output_tokens,cost_usd&#10;2026-06-01,claude-sonnet-4,812340,190220,3.29&#10;..." style="min-height:150px"></textarea>
+          <textarea aria-describedby="csvMsg" id="csvInput" spellcheck="false" placeholder="date,model,input_tokens,output_tokens,cost_usd&#10;2026-06-01,claude-sonnet-4,812340,190220,3.29&#10;..." style="min-height:150px"></textarea>
         </label>
-        <div class="field-msg" id="csvMsg" hidden></div>
+        <div class="field-msg" id="csvMsg" role="status" aria-live="polite" hidden></div>
 
         <div class="io-row">
-          <label class="btn btn-sm" for="csvFile">Choose .csv file</label>
+          <button type="button" class="btn btn-sm" id="chooseFileBtn">Choose .csv file</button>
           <input id="csvFile" type="file" accept=".csv,text/csv" style="display:none">
           <button type="button" class="try-btn" id="sampleBtn">Try an example</button>
           <span class="filechip" id="fileChip"></span>
@@ -305,8 +328,11 @@
         <!-- column mapping (hidden until data) -->
         <div class="mapbar" id="mapbar" hidden>
           <div class="map-note" id="mapNote" hidden></div>
-          <span class="lab" style="margin-bottom:9px">Column mapping — auto-detected, correct if needed</span>
-          <div class="map-grid" id="mapGrid"></div>
+          <details id="columnDetails" class="column-details">
+            <summary>Adjust columns</summary>
+            <p class="note">Only change these if the detected columns do not match your export.</p>
+            <div class="map-grid" id="mapGrid"></div>
+          </details>
           <div class="status" id="status"></div>
           <div class="warn" id="warnBox" hidden></div>
         </div>
@@ -550,6 +576,9 @@
     prices: loadPrices(),
     agg: null
   };
+  // Unvalidated input stays separate from the active ledger consumed by Pro.
+  var pendingImport = null;
+  var rejectedInput = false;
 
   /* ---------- element refs ---------- */
   var $ = function (id) { return document.getElementById(id); };
@@ -566,6 +595,7 @@
   var actionBar = $("actionBar"), exportBtnMobile = $("exportBtnMobile"), clearBtnMobile = $("clearBtnMobile");
   var pasteOffer = $("pasteOffer"), pasteLoad = $("pasteLoad"), pasteDismiss = $("pasteDismiss");
   var pendingPaste = "";
+  var loadVersion = 0;
 
   /* ---------- helpers ---------- */
   function esc(s) {
@@ -668,7 +698,7 @@
     }
     if (!truncated && (field !== "" || row.length > 0)) { pushField(); pushRow(); }
     if (truncated) { rows = rows.slice(0, maxDataRows + 1); }
-    return { rows: rows, truncated: truncated };
+    return { rows: rows, truncated: truncated, error: inQ ? "UNCLOSED_QUOTE" : null };
   }
 
   /* ---------- column detection ---------- */
@@ -723,9 +753,9 @@
   function computeAgg() {
     var map = state.map, rows = state.rawRows;
     var estimated = map.cost < 0;
-    var models = {}, days = {};
+    var models = Object.create(null), days = Object.create(null);
     var totalCost = 0, totalIn = 0, totalOut = 0, used = 0, skipped = 0;
-    var unpriced = {};
+    var unpriced = Object.create(null);
 
     for (var r = 0; r < rows.length; r++) {
       var row = rows[r];
@@ -764,15 +794,15 @@
     }
 
     var modelArr = [];
-    for (var key in models) { if (models.hasOwnProperty(key)) modelArr.push(models[key]); }
+    for (var key in models) { if (Object.prototype.hasOwnProperty.call(models, key)) modelArr.push(models[key]); }
     modelArr.sort(function (a, b) { return b.cost - a.cost || (b.inTok + b.outTok) - (a.inTok + a.outTok); });
 
     var dayArr = [];
-    for (var dkey in days) { if (days.hasOwnProperty(dkey)) dayArr.push({ key: dkey, cost: days[dkey] }); }
+    for (var dkey in days) { if (Object.prototype.hasOwnProperty.call(days, dkey)) dayArr.push({ key: dkey, cost: days[dkey] }); }
     dayArr.sort(function (a, b) { return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; });
 
     var unpricedArr = [];
-    for (var u in unpriced) { if (unpriced.hasOwnProperty(u)) unpricedArr.push(u); }
+    for (var u in unpriced) { if (Object.prototype.hasOwnProperty.call(unpriced, u)) unpricedArr.push(u); }
 
     return {
       estimated: estimated,
@@ -789,11 +819,20 @@
     };
   }
 
+  function missingPrice(agg, model) {
+    return agg.estimated && agg.unpriced.indexOf(model.name) >= 0;
+  }
+  function partialEstimate(agg) {
+    return agg.estimated && agg.unpriced.length > 0;
+  }
+
   /* ---------- rendering: stat tiles + model bars ---------- */
   function renderOutput(agg) {
+    var partial = partialEstimate(agg);
+    var hasPricedModels = agg.models.some(function (model) { return !missingPrice(agg, model); });
     var top = agg.models.length ? agg.models[0] : null;
     var topName = (top && agg.totalCost > 0) ? top.name : "—";
-    var topNote = (top && agg.totalCost > 0) ? fmtUSD(top.cost) : "no spend yet";
+    var topNote = (top && agg.totalCost > 0) ? fmtUSD(top.cost) : (partial ? "needs model prices" : "no spend yet");
 
     var rangeNote = "input + output";
     var dayNote = "—";
@@ -813,14 +852,16 @@
     }
 
     statGrid.innerHTML =
-      tile("Total spend", fmtUSD(agg.totalCost), spendNote, spendEst) +
+      tile(partial ? "Known spend (partial)" : "Total spend",
+        hasPricedModels ? fmtUSD(agg.totalCost) : "Unknown",
+        partial ? "missing model prices" : spendNote, spendEst) +
       tile("Total tokens", fmtCompact(agg.totalTokens), rangeNote, false) +
       tile("Days covered", agg.hasDate ? String(agg.days.length) : "—", agg.hasDate ? dayNote : "no date column", false) +
       tile("Top model", esc(topName), topNote, false);
 
     if (agg.estimated) {
       modeChip.className = "mode-chip est";
-      modeChip.textContent = "Estimated from tokens — edit prices below";
+      modeChip.textContent = partial ? "Partial estimate — add missing prices" : "Estimated from tokens — edit prices below";
     } else {
       modeChip.className = "mode-chip actual";
       modeChip.textContent = "Costs read from your file";
@@ -836,12 +877,14 @@
     } else {
       for (var j = 0; j < agg.models.length; j++) {
         var m = agg.models[j];
+        var unknown = missingPrice(agg, m);
         var pct = agg.totalCost > 0 ? (m.cost / agg.totalCost * 100) : 0;
         var w = maxCost > 0 ? (m.cost / maxCost * 100) : 0;
         html +=
           '<div class="mbar">' +
           '<div class="mbar-top"><span class="mname" title="' + esc(m.name) + '">' + esc(m.name) + "</span>" +
-          '<span class="mval">' + fmtUSD(m.cost) + ' <span class="pct">' + pct.toFixed(1) + "%</span></span></div>" +
+          '<span class="mval">' + (unknown ? "No price set" : fmtUSD(m.cost)) +
+          (unknown ? "" : ' <span class="pct">' + pct.toFixed(1) + "%</span>") + "</span></div>" +
           '<div class="meter"><i style="width:' + w.toFixed(1) + '%"></i></div>' +
           "</div>";
       }
@@ -857,13 +900,19 @@
 
     stateTag.innerHTML = state.isSample
       ? '<span class="tag brass">Example</span>'
-      : '<span class="tag ok">Live · ' + fmtInt(agg.usedRows) + " rows</span>";
+      : '<span class="tag ok">Imported · ' + fmtInt(agg.usedRows) + " rows</span>";
   }
 
   function setActionBar(show) {
     actionBar.hidden = !show;
     document.body.classList.toggle("has-action-bar", !!show);
+    requestAnimationFrame(sizeActionBar);
   }
+  function sizeActionBar() {
+    if (actionBar && !actionBar.hidden) document.body.style.setProperty("--token-action-height", actionBar.getBoundingClientRect().height + "px");
+  }
+  window.addEventListener("resize", sizeActionBar);
+  if (window.ResizeObserver) new ResizeObserver(sizeActionBar).observe(actionBar);
 
   function tile(lab, val, note, est) {
     return '<div class="stat"><div class="lab">' + esc(lab) + '</div>' +
@@ -896,7 +945,8 @@
     for (var i = 0; i < n; i++) { if (days[i].cost > max) max = days[i].cost; }
     var top = niceMax(max);
 
-    var svg = '<svg viewBox="0 0 ' + W + " " + H + '" class="daychart" role="img" aria-label="Spend by day" preserveAspectRatio="xMidYMid meet">';
+    var chartLabel = partialEstimate(agg) ? "Known spend by day — unpriced models excluded" : "Spend by day";
+    var svg = '<svg viewBox="0 0 ' + W + " " + H + '" class="daychart" role="img" aria-label="' + chartLabel + '" preserveAspectRatio="xMidYMid meet">';
 
     // gridlines + y labels (3) at 1/3, 2/3, 3/3 of nice max
     var fr = [1, 2 / 3, 1 / 3];
@@ -924,7 +974,8 @@
       var y = baseY - bh;
       svg += '<rect class="bar" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + barW.toFixed(1) +
         '" height="' + bh.toFixed(1) + '" fill="var(--brass)" rx="1.5">' +
-        "<title>" + esc(d.key + " · " + fmtUSD(d.cost)) + "</title></rect>";
+        "<title>" + esc(d.key + " · " + fmtUSD(d.cost) +
+        (partialEstimate(agg) ? " known subtotal; unpriced models excluded" : "")) + "</title></rect>";
       if (b % step === 0 || b === n - 1) {
         var lx = x + barW / 2;
         svg += '<text x="' + lx.toFixed(1) + '" y="' + (baseY + 15) + '" text-anchor="middle" font-size="8.5" fill="var(--ink-faint)">' +
@@ -954,10 +1005,10 @@
         '<td class="rt">' + fmtInt(m.req) + "</td>" +
         '<td class="rt">' + fmtInt(m.inTok) + "</td>" +
         '<td class="rt">' + fmtInt(m.outTok) + "</td>" +
-        '<td class="rt">' + fmtUSD(m.cost) + "</td></tr>";
+        '<td class="rt">' + (missingPrice(agg, m) ? "No price set" : fmtUSD(m.cost)) + "</td></tr>";
     }
     body += "</tbody>";
-    var foot = "<tfoot><tr><td>Total</td>" +
+    var foot = "<tfoot><tr><td>" + (partialEstimate(agg) ? "Known subtotal" : "Total") + "</td>" +
       '<td class="rt">' + fmtInt(tReq) + "</td>" +
       '<td class="rt">' + fmtInt(tIn) + "</td>" +
       '<td class="rt">' + fmtInt(tOut) + "</td>" +
@@ -976,7 +1027,8 @@
       var list = agg.unpriced.slice(0, 6).map(esc).join("</code>, <code>");
       var extra = agg.unpriced.length > 6 ? " and " + (agg.unpriced.length - 6) + " more" : "";
       warnBox.innerHTML = "<b>No price set</b> for <code>" + list + "</code>" + extra +
-        ". Add a matching row in <b>Model pricing</b> below to estimate their spend.";
+        ". Totals and charts include priced models only. Add a matching row in <b>Model pricing</b> below to estimate the rest. " +
+        "The downloaded summary marks these costs as unknown and leaves the total blank until all prices are set.";
       warnBox.hidden = false;
       if (!priceEditor.open) priceEditor.open = true;
     } else if (agg.estimated) {
@@ -996,13 +1048,14 @@
     { key: "cost", label: "Cost (USD)" }
   ];
   function buildMapping() {
+    var input = pendingImport || state;
     var html = "";
     for (var r = 0; r < ROLES.length; r++) {
       var role = ROLES[r];
       var opts = '<option value="-1">— none —</option>';
-      for (var h = 0; h < state.headers.length; h++) {
-        var sel = state.map[role.key] === h ? " selected" : "";
-        opts += '<option value="' + h + '"' + sel + ">" + esc(state.headers[h] || ("col " + (h + 1))) + "</option>";
+      for (var h = 0; h < input.headers.length; h++) {
+        var sel = input.map[role.key] === h ? " selected" : "";
+        opts += '<option value="' + h + '"' + sel + ">" + esc(input.headers[h] || ("col " + (h + 1))) + "</option>";
       }
       html += '<label><span class="lab">' + esc(role.label) + '</span><select data-role="' + role.key + '">' + opts + "</select></label>";
     }
@@ -1010,7 +1063,11 @@
     var sels = mapGrid.querySelectorAll("select");
     for (var s = 0; s < sels.length; s++) {
       sels[s].addEventListener("change", function (e) {
-        state.map[e.target.getAttribute("data-role")] = parseInt(e.target.value, 10);
+        if (!pendingImport) pendingImport = Object.assign({}, state, {
+          map: Object.assign({}, state.map), sourceLabel: fileChip.textContent,
+          currentInput: !rejectedInput
+        });
+        pendingImport.map[e.target.getAttribute("data-role")] = parseInt(e.target.value, 10);
         recompute();
       });
     }
@@ -1068,18 +1125,39 @@
 
   /* ---------- pipeline ---------- */
   function recompute() {
-    var agg = computeAgg();
+    var input = pendingImport || state;
+    if (input.map.model < 0 || (input.map.cost < 0 && input.map.in < 0 && input.map.out < 0)) {
+      rejectImport({message: "Choose the model and token or cost columns under Adjust columns; your CSV is kept here."});
+      return;
+    }
+    var problem = rowProblem(input.rawRows, input.headers, input.map);
+    if (problem) { rejectImport(problem); return; }
+    var agg = aggregateRows(input.rawRows, input.map, state.prices);
+    if (aggregateOverflows(agg)) {
+      rejectImport({message: "Totals exceed numeric limits. Split the CSV or correct its values and try again."});
+      return;
+    }
+    if (pendingImport) {
+      if (pendingImport.currentInput) rejectedInput = false;
+      ["rawText", "headers", "rawRows", "truncated", "map", "isSample"].forEach(function (key) { state[key] = pendingImport[key]; });
+      fileChip.textContent = pendingImport.sourceLabel;
+      pendingImport = null;
+    }
+    exportLabels(rejectedInput);
+    if (!rejectedInput) setCsvValidity("ok", "Usage loaded — your spend summary is ready.");
     state.agg = agg;
     renderOutput(agg);
     renderDayChart(agg);
     renderTable(agg);
     renderStatus(agg);
     chartsSection.hidden = false;
+    return true;
   }
 
   /* inline validation for the paste box (never blocks typing) */
   function setCsvValidity(kind, msg) {
     csvInput.classList.remove("ok", "err");
+    csvInput.setAttribute("aria-invalid", kind === "err" ? "true" : "false");
     if (kind === "none") {
       csvMsg.hidden = true;
       csvMsg.className = "field-msg";
@@ -1094,7 +1172,7 @@
 
   /* a friendly one-liner about what kind of export we think this is */
   function renderMapNote() {
-    var h = state.headers.map(function (x) { return String(x).toLowerCase().trim(); }).join("|");
+    var h = (pendingImport || state).headers.map(function (x) { return String(x).toLowerCase().trim(); }).join("|");
     var note;
     if (/prompt_tokens|completion_tokens|n_context_tokens|n_generated_tokens/.test(h)) {
       note = "Detected an OpenAI-style export — columns mapped automatically.";
@@ -1119,56 +1197,69 @@
     statGrid.innerHTML = t + t + t + t;
   }
 
+  function exportLabels(previous) {
+    [exportBtn, exportTop, exportBtnMobile].forEach(function (button) {
+      if (button) button.textContent = previous ? "Export previous summary CSV" : "Export summary CSV";
+    });
+    requestAnimationFrame(sizeActionBar);
+  }
+
+  function rejectImport(problem) {
+    rejectedInput = true;
+    var previous = state.agg && state.agg.models.length;
+    setCsvValidity("err", problem.message + (previous ? " Your previous ledger is still shown and available to export." : ""));
+    exportLabels(!!previous);
+    if (!previous) resetOutput();
+  }
+
   function loadText(text, sourceLabel, isSample) {
     text = text || "";
-    // big files: paint a skeleton, then parse off the frame so it actually shows
+    var version = ++loadVersion;
     if (text.length > BIG_TEXT) {
-      showSkeleton();
-      setTimeout(function () { loadTextNow(text, sourceLabel, isSample); }, 0);
-    } else {
-      loadTextNow(text, sourceLabel, isSample);
-    }
+      setCsvValidity("ok", "Reading your CSV…");
+      setTimeout(function () {
+        if (version === loadVersion) loadTextNow(text, sourceLabel, isSample);
+      }, 0);
+    } else loadTextNow(text, sourceLabel, isSample);
   }
 
   function loadTextNow(text, sourceLabel, isSample) {
-    state.rawText = text || "";
-    state.isSample = !!isSample;
-
-    var parsed = parseCSV(state.rawText, MAX_ROWS);
-    state.truncated = parsed.truncated;
-    var rows = parsed.rows;
-
-    if (!rows.length || (rows.length === 1 && rows[0].length <= 1 && String(rows[0][0]).trim() === "")) {
-      resetOutput();
-      if (state.rawText.trim()) {
-        statusEl.innerHTML = '<span style="color:var(--bad)">Could not read any rows — is this a CSV with a header line?</span>';
-        mapbar.hidden = false;
-        mapGrid.innerHTML = "";
-        mapNote.hidden = true;
-        warnBox.hidden = true;
-        setCsvValidity("err", "No rows found — this needs a header line and comma-separated values.");
-      } else {
-        setCsvValidity("none");
-      }
+    pendingImport = null;
+    if (!text.trim()) {
+      rejectedInput = false;
+      state.rawText = ""; state.headers = []; state.rawRows = []; state.agg = null;
+      fileChip.textContent = "";
+      mapbar.hidden = true; resetOutput(); setCsvValidity("none"); exportLabels(false);
       return;
     }
-
-    state.headers = rows[0];
-    state.rawRows = rows.slice(1);
-    state.map = detectAll(state.headers);
-
-    if (sourceLabel) fileChip.textContent = sourceLabel;
-
-    mapbar.hidden = false;
-    renderMapNote();
-    buildMapping();
-    recompute();
-
-    if (csvInput.value.trim()) {
-      setCsvValidity("ok", (isSample ? "Example loaded" : "Read as CSV") + " — your ledger is on the right.");
-    } else {
-      setCsvValidity("none");
+    var parsed = parseCSV(text.replace(/^\uFEFF/, ""), MAX_ROWS);
+    var problem = csvProblem(parsed);
+    var map = parsed.rows.length ? detectAll(parsed.rows[0]) : null;
+    if (!problem && map && (map.cost >= 0 || map.in >= 0 || map.out >= 0)) {
+      problem = rowProblem(parsed.rows.slice(1), parsed.rows[0], map);
     }
+    if (problem) {
+      buildMapping(); renderMapNote();
+      mapbar.hidden = !state.headers.length;
+      rejectImport(problem); return;
+    }
+
+    pendingImport = {
+      currentInput: true,
+      rawText: text, isSample: !!isSample,
+      truncated: parsed.truncated || parsed.rows.length - 1 > MAX_ROWS,
+      headers: parsed.rows[0], rawRows: parsed.rows.slice(1, MAX_ROWS + 1),
+      map: map, sourceLabel: sourceLabel || ""
+    };
+    exportLabels(false);
+    mapbar.hidden = false; renderMapNote(); buildMapping();
+    var needsMapping = map.model < 0 || (map.cost < 0 && map.in < 0 && map.out < 0);
+    $("columnDetails").open = needsMapping;
+    if (needsMapping) {
+      rejectImport({message: "The column names need your help. Adjust columns below; your CSV is kept here."});
+      return;
+    }
+    if (recompute()) setCsvValidity("ok", (isSample ? "Example loaded" : "Usage loaded") + " — your spend summary is ready.");
   }
 
   function resetOutput() {
@@ -1184,7 +1275,6 @@
 
   /* ---------- input wiring ---------- */
   var onPaste = debounce(function () {
-    fileChip.textContent = "";
     var hasText = !!csvInput.value.trim();
     loadText(csvInput.value, hasText ? "pasted" : "", false);
     if (!hasText) { resetOutput(); mapbar.hidden = true; setCsvValidity("none"); }
@@ -1194,8 +1284,10 @@
 
   function readFile(f) {
     if (!f) return;
+    var version = ++loadVersion;
     var reader = new FileReader();
     reader.onload = function () {
+      if (version !== loadVersion) return;
       var text = String(reader.result || "");
       // avoid stuffing very large files into the textarea DOM
       if (text.length <= 200000) csvInput.value = text;
@@ -1203,11 +1295,13 @@
       loadText(text, f.name, false);
     };
     reader.onerror = function () {
-      statusEl.innerHTML = '<span style="color:var(--bad)">Could not read that file.</span>';
-      mapbar.hidden = false;
+      if (version !== loadVersion) return;
+      rejectImport({message: "Could not read that file. Choose it again or paste its contents."});
     };
     reader.readAsText(f);
   }
+
+  $("chooseFileBtn").addEventListener("click", function () { csvFile.click(); });
 
   csvFile.addEventListener("change", function () {
     readFile(csvFile.files && csvFile.files[0]);
@@ -1225,6 +1319,9 @@
   if (sampleBtn2) sampleBtn2.addEventListener("click", loadSample);
 
   function doClear() {
+    pendingImport = null;
+    rejectedInput = false;
+    ++loadVersion; state.agg = null; exportLabels(false);
     csvInput.value = "";
     csvFile.value = "";
     fileChip.textContent = "";
@@ -1246,14 +1343,19 @@
   function doExport() {
     var agg = state.agg;
     if (!agg || !agg.models.length) return;
-    var rows = [["model", "rows", "input_tokens", "output_tokens", (agg.estimated ? "est_cost_usd" : "cost_usd")]];
+    var rows = [["model", "rows", "input_tokens", "output_tokens",
+      (agg.estimated ? "est_cost_usd" : "cost_usd"), "cost_status"]];
     var tReq = 0, tIn = 0, tOut = 0, tCost = 0;
     for (var i = 0; i < agg.models.length; i++) {
       var m = agg.models[i];
       tReq += m.req; tIn += m.inTok; tOut += m.outTok; tCost += m.cost;
-      rows.push([m.name, m.req, Math.round(m.inTok), Math.round(m.outTok), m.cost.toFixed(4)]);
+      var unknown = missingPrice(agg, m);
+      rows.push([m.name, m.req, Math.round(m.inTok), Math.round(m.outTok),
+        unknown ? "" : m.cost.toFixed(4), unknown ? "missing_price" : (agg.estimated ? "estimated" : "observed")]);
     }
-    rows.push(["TOTAL", tReq, Math.round(tIn), Math.round(tOut), tCost.toFixed(4)]);
+    rows.push(["TOTAL", tReq, Math.round(tIn), Math.round(tOut),
+      partialEstimate(agg) ? "" : tCost.toFixed(4),
+      partialEstimate(agg) ? "partial" : (agg.estimated ? "estimated" : "observed")]);
     var csv = rows.map(function (r) {
       return r.map(function (v) {
         var s = String(v);
@@ -1372,6 +1474,128 @@
     return rows.map(function (r) { return r.join(","); }).join("\n");
   }
 
+  /* Versioned, synchronous analysis for browser automation. No UI/storage writes.
+     Defaults come from source, never from the user's mutable price editor. */
+  function analyzeCSV(request) {
+    function failure(code, message, detail) {
+      var error = { code: code, message: message };
+      if (detail) Object.keys(detail).forEach(function (key) { error[key] = detail[key]; });
+      return { schema_version: 1, status: "error", errors: [error], warnings: [], result: null };
+    }
+    if (!request || typeof request !== "object" || Array.isArray(request) || typeof request.csv !== "string") {
+      return failure("INVALID_REQUEST", "Provide an object with csv text and optional columns and prices.");
+    }
+    var allowed = ["csv", "columns", "prices"];
+    if (Object.keys(request).some(function (key) { return allowed.indexOf(key) < 0; })) {
+      return failure("INVALID_REQUEST", "Unknown request field; supported fields are csv, columns and prices.");
+    }
+    var parsed = parseCSV(request.csv.replace(/^\uFEFF/, ""), MAX_ROWS);
+    var problem = csvProblem(parsed);
+    if (problem) return failure(problem.code, problem.message);
+    if (parsed.truncated || parsed.rows.length - 1 > MAX_ROWS) {
+      return failure("ROW_LIMIT_EXCEEDED", "Split the CSV into batches of at most " + MAX_ROWS + " data records.", { limit: MAX_ROWS });
+    }
+    var headers = parsed.rows[0], rows = parsed.rows.slice(1);
+    var map = detectAll(headers);
+    if (request.columns !== undefined) {
+      if (!request.columns || typeof request.columns !== "object" || Array.isArray(request.columns) ||
+          Object.keys(request.columns).some(function (key) { return ["date", "model", "in", "out", "cost"].indexOf(key) < 0; })) {
+        return failure("INVALID_COLUMNS", "Columns must map date, model, in, out or cost to zero-based indexes, or -1 for absent.");
+      }
+      Object.keys(request.columns).forEach(function (key) { map[key] = request.columns[key]; });
+    }
+    var roles = ["date", "model", "in", "out", "cost"], usedColumns = [];
+    for (var i = 0; i < roles.length; i++) {
+      var index = map[roles[i]];
+      if (!Number.isInteger(index) || index < -1 || index >= headers.length ||
+          (index >= 0 && usedColumns.indexOf(index) >= 0)) {
+        return failure("INVALID_COLUMNS", "Each mapped role needs a distinct in-range integer index, or -1.", { role: roles[i] });
+      }
+      if (index >= 0) usedColumns.push(index);
+    }
+    if (map.model < 0 || (map.cost < 0 && map.in < 0 && map.out < 0)) {
+      return failure("COLUMNS_REQUIRED", "Map a model column and at least one cost or token column.", { detected_columns: map });
+    }
+    var prices = request.prices === undefined ? DEFAULT_PRICES : request.prices;
+    if (!Array.isArray(prices) || prices.some(function (p) {
+      return !p || typeof p.match !== "string" || !p.match.trim() ||
+        typeof p.in !== "number" || !Number.isFinite(p.in) || p.in < 0 ||
+        typeof p.out !== "number" || !Number.isFinite(p.out) || p.out < 0;
+    })) return failure("INVALID_PRICES", "Every price needs a nonempty match and finite nonnegative numeric in/out rates per million tokens.");
+    problem = rowProblem(rows, headers, map);
+    if (problem) return failure(problem.code, problem.message, { record: problem.record, column: problem.column });
+    var agg = aggregateRows(rows, map, prices);
+    if (aggregateOverflows(agg)) {
+      return failure("NUMERIC_OVERFLOW", "Totals exceed finite numeric limits; split the input or correct its values.");
+    }
+    var partial = partialEstimate(agg), warnings = [];
+    if (partial) warnings.push({ code: "MISSING_PRICES", models: agg.unpriced.slice(), message: "Add explicit prices and retry to complete the cost total." });
+    if (map.date < 0) warnings.push({ code: "NO_DATE_COLUMN", message: "No date column was mapped; daily costs are unavailable." });
+    return {
+      schema_version: 1, status: partial ? "partial" : "complete", errors: [], warnings: warnings,
+      result: {
+        currency: "USD", cost_basis: agg.estimated ? "estimated" : "observed",
+        cost_complete: !partial, total_cost_usd: partial ? null : agg.totalCost,
+        known_cost_usd: agg.totalCost, input_tokens: agg.totalIn, output_tokens: agg.totalOut,
+        used_records: agg.usedRows, columns: map,
+        models: agg.models.map(function (m) {
+          var unknown = missingPrice(agg, m);
+          return { model: m.name, records: m.req, input_tokens: m.inTok, output_tokens: m.outTok,
+            cost_usd: unknown ? null : m.cost, cost_status: unknown ? "missing_price" : (agg.estimated ? "estimated" : "observed") };
+        })
+      }
+    };
+  }
+
+  function csvProblem(parsed) {
+    if (parsed.error) return { code: "UNCLOSED_QUOTE", message: "A quoted value is unfinished. Close its quotation mark and try again." };
+    if (!parsed.rows.length) return { code: "EMPTY_INPUT", message: "Choose a usage CSV or paste its contents to start." };
+    if (parsed.rows[0].length < 2) return { code: "INVALID_HEADER", message: "This needs a header row with comma-separated columns. Export a CSV from your provider and try again." };
+    if (parsed.rows.length < 2) return { code: "NO_DATA_RECORDS", message: "This file has column names but no usage rows. Export a date range containing usage and try again." };
+    return null;
+  }
+
+  function aggregateOverflows(agg) {
+    return !Number.isFinite(agg.totalCost) ||
+      ![agg.totalIn, agg.totalOut, agg.totalTokens].every(Number.isSafeInteger) ||
+      agg.models.some(function (model) {
+        return !Number.isFinite(model.cost) || ![model.inTok, model.outTok].every(Number.isSafeInteger);
+      }) || agg.days.some(function (day) { return !Number.isFinite(day.cost); });
+  }
+
+  function rowProblem(rows, headers, map) {
+    var numeric = ["in", "out", "cost"];
+    for (var r = 0; r < rows.length; r++) {
+      if (rows[r].length !== headers.length) return { code: "ROW_WIDTH", record: r + 1, column: null,
+        message: "Usage record " + (r + 1) + " has a different number of columns. Check commas and quoted values." };
+      for (var f = 0; f < numeric.length; f++) {
+        var role = numeric[f], index = map[role];
+        if (index < 0) continue;
+        var raw = String(rows[r][index]).replace(/[$,\s]/g, "");
+        var value = Number(raw);
+        if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(raw) || !Number.isFinite(value) || (role !== "cost" && (!Number.isSafeInteger(value) || value < 0))) {
+          return { code: "INVALID_NUMBER", record: r + 1, column: index,
+            message: "Usage record " + (r + 1) + " needs a valid " + (role === "cost" ? "cost" : "nonnegative whole token count") + " in “" + headers[index] + "”. Correct that value and try again." };
+        }
+      }
+    }
+    return null;
+  }
+
+  function aggregateRows(rows, map, prices) {
+    var saved = { rawRows: state.rawRows, map: state.map, prices: state.prices };
+    state.rawRows = rows || [];
+    state.map = map || state.map;
+    if (prices) state.prices = prices;
+    try { return computeAgg(); }
+    finally {
+      state.rawRows = saved.rawRows;
+      state.map = saved.map;
+      state.prices = saved.prices;
+    }
+  }
+
+
   /* ---------- read-only access for the Pro builder ----------
      `aggregate` runs the free dashboard's own costing over rows supplied by the
      caller, so a merged Pro report can never disagree with what is on screen. */
@@ -1381,19 +1605,9 @@
     detectAll: detectAll,
     defaultPrices: DEFAULT_PRICES.map(function (p) { return { match: p.match, in: p.in, out: p.out }; }),
     maxRows: MAX_ROWS,
-    aggregate: function (rows, map, prices) {
-      var saved = { rawRows: state.rawRows, map: state.map, prices: state.prices };
-      state.rawRows = rows || [];
-      state.map = map || state.map;
-      if (prices) state.prices = prices;
-      try {
-        return computeAgg();
-      } finally {
-        state.rawRows = saved.rawRows;
-        state.map = saved.map;
-        state.prices = saved.prices;
-      }
-    }
+    analysisSchemaVersion: 1,
+    analyzeCSV: analyzeCSV,
+    aggregate: aggregateRows
   };
 
   /* ---------- init ---------- */
