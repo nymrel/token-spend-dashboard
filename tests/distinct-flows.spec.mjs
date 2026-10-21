@@ -62,6 +62,11 @@ test("column correction preserves the previous ledger and its export until mappi
   await expect(page.locator("#statGrid")).toContainText("$4.00");
   await expect(page.locator("#csvMsg")).toContainText("Your previous ledger is still shown");
   await expect(page.locator("#exportBtn")).toContainText("previous");
+  const retainedSource = await page.evaluate(() => {
+    const t = window.JBTokens, s = t.state;
+    return {rawText:s.rawText, total:t.aggregate(s.rawRows, s.map, s.prices).totalCost};
+  });
+  expect(retainedSource).toEqual({rawText:csv, total:4});
   const downloadEvent = page.waitForEvent("download");
   await page.locator("#exportBtn").click();
   const download = await downloadEvent;
@@ -79,6 +84,10 @@ test("column correction preserves the previous ledger and its export until mappi
   await expect(page.locator("#csvInput")).toHaveAttribute("aria-invalid", "true");
   await page.locator('select[data-role="model"]').selectOption("0");
   await expect(page.locator("#csvInput")).toHaveAttribute("aria-invalid", "false");
+  expect(await page.evaluate(() => {
+    const t = window.JBTokens, s = t.state;
+    return t.aggregate(s.rawRows, s.map, s.prices).totalCost;
+  })).toBe(3);
 });
 
 test("import and export actions retain phone touch targets at narrow widths", async ({ page }) => {
@@ -95,4 +104,26 @@ test("import and export actions retain phone touch targets at narrow widths", as
       }
     }
   }
+});
+
+test("cancelled global costs cannot hide model or daily numeric overflow", async ({ page }) => {
+  const overflowCSV = "date,model,cost_usd\n2026-10-01,a,1e308\n2026-10-02,b,-1e308\n2026-10-01,a,1e308\n2026-10-02,b,-1e308";
+  for (const input of [
+    overflowCSV,
+    // Separate dates keep daily totals finite while model totals overflow.
+    overflowCSV.replace("2026-10-01,a,1e308\n2026-10-02,b,-1e308", "2026-10-03,a,1e308\n2026-10-04,b,-1e308"),
+    // Separate models keep model totals finite while daily totals overflow.
+    overflowCSV.replace("a,1e308", "c,1e308").replace("b,-1e308", "d,-1e308"),
+  ]) {
+    const result = await page.evaluate(csv => window.JBTokens.analyzeCSV({csv}), input);
+    expect(result.status).toBe("error");
+    expect(result.result).toBeNull();
+    expect(result.errors[0].code).toBe("NUMERIC_OVERFLOW");
+  }
+  await page.locator("#csvInput").fill(csv);
+  await expect(page.locator("#statGrid")).toContainText("$4.00");
+  await page.locator("#csvInput").fill(overflowCSV);
+  await expect(page.locator("#csvInput")).toHaveAttribute("aria-invalid", "true");
+  await expect(page.locator("#statGrid")).toContainText("$4.00");
+  await expect(page.locator("#exportBtn")).toContainText("previous");
 });

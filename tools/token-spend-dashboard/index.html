@@ -576,6 +576,8 @@
     prices: loadPrices(),
     agg: null
   };
+  // Unvalidated input stays separate from the active ledger consumed by Pro.
+  var pendingImport = null;
 
   /* ---------- element refs ---------- */
   var $ = function (id) { return document.getElementById(id); };
@@ -1045,13 +1047,14 @@
     { key: "cost", label: "Cost (USD)" }
   ];
   function buildMapping() {
+    var input = pendingImport || state;
     var html = "";
     for (var r = 0; r < ROLES.length; r++) {
       var role = ROLES[r];
       var opts = '<option value="-1">— none —</option>';
-      for (var h = 0; h < state.headers.length; h++) {
-        var sel = state.map[role.key] === h ? " selected" : "";
-        opts += '<option value="' + h + '"' + sel + ">" + esc(state.headers[h] || ("col " + (h + 1))) + "</option>";
+      for (var h = 0; h < input.headers.length; h++) {
+        var sel = input.map[role.key] === h ? " selected" : "";
+        opts += '<option value="' + h + '"' + sel + ">" + esc(input.headers[h] || ("col " + (h + 1))) + "</option>";
       }
       html += '<label><span class="lab">' + esc(role.label) + '</span><select data-role="' + role.key + '">' + opts + "</select></label>";
     }
@@ -1059,7 +1062,10 @@
     var sels = mapGrid.querySelectorAll("select");
     for (var s = 0; s < sels.length; s++) {
       sels[s].addEventListener("change", function (e) {
-        state.map[e.target.getAttribute("data-role")] = parseInt(e.target.value, 10);
+        if (!pendingImport) pendingImport = Object.assign({}, state, {
+          map: Object.assign({}, state.map), sourceLabel: fileChip.textContent
+        });
+        pendingImport.map[e.target.getAttribute("data-role")] = parseInt(e.target.value, 10);
         recompute();
       });
     }
@@ -1117,21 +1123,32 @@
 
   /* ---------- pipeline ---------- */
   function recompute() {
-    if (state.map.model < 0 || (state.map.cost < 0 && state.map.in < 0 && state.map.out < 0)) {
+    var input = pendingImport || state;
+    if (input.map.model < 0 || (input.map.cost < 0 && input.map.in < 0 && input.map.out < 0)) {
       rejectImport({message: "Choose the model and token or cost columns under Adjust columns; your CSV is kept here."});
       return;
     }
-    var problem = rowProblem(state.rawRows, state.headers, state.map);
+    var problem = rowProblem(input.rawRows, input.headers, input.map);
     if (problem) { rejectImport(problem); return; }
+    var agg = aggregateRows(input.rawRows, input.map, state.prices);
+    if (aggregateOverflows(agg)) {
+      rejectImport({message: "Totals exceed numeric limits. Split the CSV or correct its values and try again."});
+      return;
+    }
+    if (pendingImport) {
+      ["rawText", "headers", "rawRows", "truncated", "map", "isSample"].forEach(function (key) { state[key] = pendingImport[key]; });
+      fileChip.textContent = pendingImport.sourceLabel;
+      pendingImport = null;
+    }
     exportLabels(false);
     setCsvValidity("ok", "Usage loaded — your spend summary is ready.");
-    var agg = computeAgg();
     state.agg = agg;
     renderOutput(agg);
     renderDayChart(agg);
     renderTable(agg);
     renderStatus(agg);
     chartsSection.hidden = false;
+    return true;
   }
 
   /* inline validation for the paste box (never blocks typing) */
@@ -1152,7 +1169,7 @@
 
   /* a friendly one-liner about what kind of export we think this is */
   function renderMapNote() {
-    var h = state.headers.map(function (x) { return String(x).toLowerCase().trim(); }).join("|");
+    var h = (pendingImport || state).headers.map(function (x) { return String(x).toLowerCase().trim(); }).join("|");
     var note;
     if (/prompt_tokens|completion_tokens|n_context_tokens|n_generated_tokens/.test(h)) {
       note = "Detected an OpenAI-style export — columns mapped automatically.";
@@ -1203,8 +1220,10 @@
   }
 
   function loadTextNow(text, sourceLabel, isSample) {
+    pendingImport = null;
     if (!text.trim()) {
       state.rawText = ""; state.headers = []; state.rawRows = []; state.agg = null;
+      fileChip.textContent = "";
       mapbar.hidden = true; resetOutput(); setCsvValidity("none"); exportLabels(false);
       return;
     }
@@ -1214,13 +1233,18 @@
     if (!problem && map && (map.cost >= 0 || map.in >= 0 || map.out >= 0)) {
       problem = rowProblem(parsed.rows.slice(1), parsed.rows[0], map);
     }
-    if (problem) { rejectImport(problem); return; }
+    if (problem) {
+      buildMapping(); renderMapNote();
+      mapbar.hidden = !state.headers.length;
+      rejectImport(problem); return;
+    }
 
-    state.rawText = text; state.isSample = !!isSample;
-    state.truncated = parsed.truncated || parsed.rows.length - 1 > MAX_ROWS;
-    state.headers = parsed.rows[0]; state.rawRows = parsed.rows.slice(1, MAX_ROWS + 1);
-    state.map = map;
-    if (sourceLabel) fileChip.textContent = sourceLabel;
+    pendingImport = {
+      rawText: text, isSample: !!isSample,
+      truncated: parsed.truncated || parsed.rows.length - 1 > MAX_ROWS,
+      headers: parsed.rows[0], rawRows: parsed.rows.slice(1, MAX_ROWS + 1),
+      map: map, sourceLabel: sourceLabel || ""
+    };
     exportLabels(false);
     mapbar.hidden = false; renderMapNote(); buildMapping();
     var needsMapping = map.model < 0 || (map.cost < 0 && map.in < 0 && map.out < 0);
@@ -1229,8 +1253,7 @@
       rejectImport({message: "The column names need your help. Adjust columns below; your CSV is kept here."});
       return;
     }
-    recompute();
-    setCsvValidity("ok", (isSample ? "Example loaded" : "Usage loaded") + " — your spend summary is ready.");
+    if (recompute()) setCsvValidity("ok", (isSample ? "Example loaded" : "Usage loaded") + " — your spend summary is ready.");
   }
 
   function resetOutput() {
@@ -1246,7 +1269,6 @@
 
   /* ---------- input wiring ---------- */
   var onPaste = debounce(function () {
-    fileChip.textContent = "";
     var hasText = !!csvInput.value.trim();
     loadText(csvInput.value, hasText ? "pasted" : "", false);
     if (!hasText) { resetOutput(); mapbar.hidden = true; setCsvValidity("none"); }
@@ -1291,6 +1313,7 @@
   if (sampleBtn2) sampleBtn2.addEventListener("click", loadSample);
 
   function doClear() {
+    pendingImport = null;
     ++loadVersion; state.agg = null; exportLabels(false);
     csvInput.value = "";
     csvFile.value = "";
@@ -1495,7 +1518,7 @@
     problem = rowProblem(rows, headers, map);
     if (problem) return failure(problem.code, problem.message, { record: problem.record, column: problem.column });
     var agg = aggregateRows(rows, map, prices);
-    if (!Number.isFinite(agg.totalCost) || ![agg.totalIn, agg.totalOut, agg.totalTokens].every(Number.isSafeInteger)) {
+    if (aggregateOverflows(agg)) {
       return failure("NUMERIC_OVERFLOW", "Totals exceed finite numeric limits; split the input or correct its values.");
     }
     var partial = partialEstimate(agg), warnings = [];
@@ -1523,6 +1546,14 @@
     if (parsed.rows[0].length < 2) return { code: "INVALID_HEADER", message: "This needs a header row with comma-separated columns. Export a CSV from your provider and try again." };
     if (parsed.rows.length < 2) return { code: "NO_DATA_RECORDS", message: "This file has column names but no usage rows. Export a date range containing usage and try again." };
     return null;
+  }
+
+  function aggregateOverflows(agg) {
+    return !Number.isFinite(agg.totalCost) ||
+      ![agg.totalIn, agg.totalOut, agg.totalTokens].every(Number.isSafeInteger) ||
+      agg.models.some(function (model) {
+        return !Number.isFinite(model.cost) || ![model.inTok, model.outTok].every(Number.isSafeInteger);
+      }) || agg.days.some(function (day) { return !Number.isFinite(day.cost); });
   }
 
   function rowProblem(rows, headers, map) {
