@@ -16,8 +16,8 @@
     "check": "npm run verify:static && npm run test:e2e"
   },
   "devDependencies": {
-    "@axe-core/playwright": "4.13.0",
-    "@playwright/test": "1.62.1",
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.64.1",
     "serve": "14.2.6"
   },
   "overrides": {
