@@ -73,3 +73,51 @@ test("keeps the rendered ledger operable without horizontal overflow", async ({ 
   );
   expect(hasOverflow).toBe(false);
 });
+
+
+test("keeps missing model prices unknown in the screen and exported summary", async ({ page }) => {
+  await page.evaluate(() => { window.JBTokens.state.prices = [{ match: "known-fixture", in: 2, out: 10 }]; });
+  await page.locator("#csvInput").fill([
+    "date,model,input_tokens,output_tokens",
+    "2026-10-05,known-fixture,1000000,1000000",
+    "2026-10-05,unpriced-fixture,1000000,1000000",
+  ].join("\n"));
+  await expect(page.locator("#statGrid")).toContainText("Known spend (partial)");
+  await expect(page.locator("#modeChip")).toContainText("Partial estimate");
+  const unknownRow = page.locator("#dataTable tbody tr").filter({ hasText: "unpriced-fixture" });
+  await expect(unknownRow).toContainText("No price set");
+  await expect(unknownRow).not.toContainText("$0.00");
+  const downloadEvent = page.waitForEvent("download");
+  await page.locator("#exportBtn").click();
+  const download = await downloadEvent;
+  const { readFile } = await import("node:fs/promises");
+  const exported = await readFile(await download.path(), "utf8");
+  expect(exported).toContain("cost_status");
+  expect(exported).toContain("unpriced-fixture,1,1000000,1000000,,missing_price");
+  expect(exported).toContain("TOTAL,2,2000000,2000000,,partial");
+  expect(exported).toContain("known-fixture,1,1000000,1000000,12.0000,estimated");
+});
+
+test("preserves a valid observed zero cost", async ({ page }) => {
+  await page.locator("#csvInput").fill("date,model,input_tokens,output_tokens,cost_usd\n2026-10-05,zero-fixture,100,100,0");
+  await expect(page.locator("#statGrid")).toContainText("Total spend");
+  await expect(page.locator("#statGrid")).toContainText("$0.00");
+  await expect(page.locator("#dataTable")).not.toContainText("No price set");
+});
+
+
+test("keeps narrow-screen stat cards and price inputs inside their panels", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 1000 });
+  await page.locator("#csvInput").fill(csv);
+  await expect(page.locator("#dash")).toBeVisible();
+  const fits = await page.locator("#statGrid").evaluate(node => {
+    const bounds = node.getBoundingClientRect();
+    return [...node.children].every(card => card.getBoundingClientRect().right <= bounds.right + 1);
+  });
+  expect(fits).toBe(true);
+  await page.locator("#priceEditor summary").click();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);
+  expect(overflow).toBe(false);
+  const height = await page.locator("#priceRows input").first().evaluate(node => node.getBoundingClientRect().height);
+  expect(height).toBeGreaterThanOrEqual(40);
+});

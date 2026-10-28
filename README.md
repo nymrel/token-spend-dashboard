@@ -1,5 +1,7 @@
 # Token Ledger
 
+For feedback or implementation, see [Getting help and contributing](#getting-help-and-contributing).
+
 Paste your Anthropic or OpenAI usage export and get a spend dashboard — by day, by
 model, with cost estimates. Imported rows are processed locally in your browser.
 
@@ -80,3 +82,27 @@ Font License.
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Getting help and contributing
+
+Describe what you tried, what happened and the result you wanted. Plain-language feedback is enough; implementation details can be reconstructed from the source.
+
+For implementation, start with [AGENTS.md](AGENTS.md), then [CONTRIBUTING.md](CONTRIBUTING.md).
+
+These commands are declared in the linked manifests. Use the listed working directory and the maintainer's setup instructions. Inspect prerequisites before running an aggregate check.
+
+| Working directory | Declared command | Manifest |
+| --- | --- | --- |
+| `.` | `npm run check` | [package.json](package.json) |
+
+## Token Ledger: missing model prices
+
+If a model has no matching price, Token Ledger shows **No price set** and labels spend as a partial estimate. Charts and subtotals include priced models only. Add a matching row under Model pricing to complete the estimate.
+
+Summary CSV exports append a `cost_status` column: `observed`, `estimated`, `missing_price` or `partial`. An unpriced model's cost is blank; an incomplete TOTAL cost is also blank. Valid, known zero costs remain numeric zero. Consumers should use the status field when distinguishing unknown from free usage.
+
+## Token Ledger import and automation
+
+Choose a usage CSV or paste its contents. Ordinary imports show the summary first; Adjust columns is available when you need it. An unreadable or invalid import keeps the previous valid ledger and labels its export. Correct the input and retry; you do not need to clear your work.
+
+Browser agents can use the [versioned analysis contract](docs/token-ledger-automation.md) with explicit inputs, structured errors and unknown costs, without changing the person’s current ledger. This is a prepared source candidate; hosted adoption is unverified.
