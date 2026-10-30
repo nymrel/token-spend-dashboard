@@ -15,6 +15,8 @@ you spent it, and which model took the money.
 
 No account, no API key, no email gate.
 
+Try the [synthetic CSV walkthrough](docs/usage-csv-walkthrough.md) to check observed, estimated, and unknown costs with fixed inputs. The examples use fictional models and prices.
+
 ## Run it locally
 
 No build step and no dependencies. It is a static page.
