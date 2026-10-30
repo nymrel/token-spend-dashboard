@@ -10,8 +10,8 @@
   },
   "packageManager": "npm@11.19.1",
   "scripts": {
-    "verify:static": "node --test scripts/local-assets.test.mjs && node scripts/verify-static-tool.mjs",
-    "serve:test": "serve --no-clipboard --listen 4173 .",
+    "verify:static": "node --test scripts/local-assets.test.mjs scripts/test-server.test.mjs && node scripts/verify-static-tool.mjs",
+    "serve:test": "node scripts/test-server.mjs",
     "test:e2e": "playwright test",
     "check": "npm run verify:static && npm run test:e2e"
   },

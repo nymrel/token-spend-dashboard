@@ -1,0 +1,4 @@
+date,model,input_tokens,output_tokens,cost_usd
+2026-10-01,fixture-model-a,1000000,500000,1.25
+2026-10-02,fixture-model-a,500000,250000,0.75
+2026-10-02,fixture-model-z,1000000,1000000,0
