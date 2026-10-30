@@ -11,6 +11,18 @@ This repository is the reviewable source for Token Ledger. Usage-export parsing 
 
 The product itself remains dependency-free static HTML, CSS, JavaScript, and fonts. npm dependencies exist only for repeatable verification.
 
+The test server binds only `127.0.0.1:4173` and serves this repository. It does not
+enumerate the host's network interfaces. Its HTTP regressions check content types,
+HEAD requests, missing files, unsupported methods and path confinement.
+
+Playwright uses its installed Chromium by default. If a restricted test host
+already has an independently installed compatible Chromium, set
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to its absolute executable path when running
+`npm run check`. This changes only the launched browser; the same desktop and
+phone assertions, screenshots, failure videos and traces remain enabled. Record
+the actual browser version with the result. An alternate-browser pass does not
+establish a pass on the default pinned browser or the hosted CI matrix.
+
 ## Change boundaries
 
 - Do not transmit imported CSV content, model names, usage values, or derived spend.
